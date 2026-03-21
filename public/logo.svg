@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 180">
+  <!-- Left stroke of V - orange -->
+  <polygon points="5,10 40,10 100,150 70,150" fill="#E65100"/>
+  <!-- Right stroke of V - orange (goes behind the T) -->
+  <polygon points="70,150 100,150 155,25 125,25" fill="#E65100"/>
+  <!-- T horizontal bar - navy -->
+  <polygon points="110,10 235,10 235,42 110,42" fill="#1C2B4A"/>
+  <!-- T vertical stem - navy -->
+  <polygon points="150,42 185,42 185,170 150,170" fill="#1C2B4A"/>
+</svg>
