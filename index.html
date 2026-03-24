@@ -1762,7 +1762,7 @@
     >
       <div class="nav-container">
         <a href="/" class="logo" aria-label="Veerapathra Lorry - Home">
-          <img src="/public/logo.svg" alt="Veerapathra Lorry logo" class="logo-img" width="44" height="36" />
+          <img src="/public/logo.png" alt="Veerapathra Lorry logo" class="logo-img" width="48" height="32" />
           <div class="logo-text">Veerapathra <span>Lorry</span></div>
         </a>
         <button
@@ -2815,7 +2815,7 @@
           var discInfo = document.getElementById("discountInfo");
           if (!km || km < 10) { box.style.display = "none"; return; }
           var tf = (tonnes && tonnes >= 1) ? tonnes / 25 : 1;
-          var baseLow = 5000 + km * 45 * tf;
+          var baseLow = 5000 + km * 60 * tf;
           var baseHigh = 8000 + km * 105 * tf;
           var low = Math.max(15000, Math.round(baseLow));
           var high = Math.max(15000, Math.round(baseHigh));
