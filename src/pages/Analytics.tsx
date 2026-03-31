@@ -497,7 +497,9 @@ export default function Analytics() {
           {Object.values(gaps).some((g: any) => g.idleDays > 3) && (
             <div className="mt-3 text-xs text-amber-400/80 bg-amber-500/5 rounded-lg p-2">
               Each idle day = ~₹
-              {Math.round(pace?.currentPace || 3000).toLocaleString("en-IN")}{" "}
+              {Math.round(pace?.currentPace || 3000).toLocaleString(
+                "en-IN",
+              )}{" "}
               lost revenue. Pre-book return loads to eliminate gaps.
             </div>
           )}
@@ -513,15 +515,57 @@ export default function Analytics() {
               Route Intelligence
             </h2>
           </div>
-          <div className="overflow-x-auto">
+          {/* Mobile route cards */}
+          <div className="md:hidden space-y-2">
+            {routes.slice(0, 8).map((r: any, i: number) => {
+              const tb =
+                r.avgPerDay >= 5000
+                  ? tierBadge("A")
+                  : r.avgPerDay >= 3000
+                    ? tierBadge("B")
+                    : r.avgPerDay >= 2000
+                      ? tierBadge("C")
+                      : r.avgPerDay >= 1000
+                        ? tierBadge("D")
+                        : tierBadge("F");
+              return (
+                <div
+                  key={i}
+                  className={`rounded-lg border ${tb.border} ${tb.bg} px-3.5 py-3`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-sm text-slate-300 truncate flex-1">
+                      {r.route}
+                    </span>
+                    <span className={`text-sm font-bold ${tb.color}`}>
+                      {fmtInr(r.avgPerDay)}/d
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-slate-400">
+                    <span>
+                      {r.count} trip{r.count > 1 ? "s" : ""}
+                    </span>
+                    <span>Profit {fmtInr(r.avgProfit)}</span>
+                    <span>{fmtPct(r.margin)}</span>
+                    <span className="ml-auto">
+                      {r.tiers.map((t: string, j: number) => (
+                        <span key={j}>{tierBadge(t).emoji}</span>
+                      ))}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop route table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-slate-400 uppercase border-b border-slate-700/50">
                   <th className="py-2 px-2 text-left">Route</th>
                   <th className="py-2 px-2 text-right">Trips</th>
-                  <th className="py-2 px-2 text-right hidden sm:table-cell">
-                    Avg Revenue
-                  </th>
+                  <th className="py-2 px-2 text-right">Avg Revenue</th>
                   <th className="py-2 px-2 text-right">Avg Profit</th>
                   <th className="py-2 px-2 text-right">₹/Day</th>
                   <th className="py-2 px-2 text-right">Margin</th>
@@ -548,7 +592,7 @@ export default function Analytics() {
                       <td className="py-2 px-2 text-right text-slate-400">
                         {r.count}
                       </td>
-                      <td className="py-2 px-2 text-right text-slate-400 hidden sm:table-cell">
+                      <td className="py-2 px-2 text-right text-slate-400">
                         {fmtInr(r.avgRevenue)}
                       </td>
                       <td className="py-2 px-2 text-right text-slate-300">

@@ -118,8 +118,116 @@ export default function Trips() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-slate-700/50">
+      {/* Sort (mobile) */}
+      <div className="flex gap-2 md:hidden">
+        <span className="text-xs text-slate-500 self-center">Sort:</span>
+        {(["date", "perDay", "trueProfit", "revenue"] as SortKey[]).map((k) => (
+          <button
+            key={k}
+            onClick={() => toggleSort(k)}
+            className={`text-xs px-2 py-1 rounded-md ${sortKey === k ? "bg-orange-500/15 text-orange-400" : "bg-slate-800 text-slate-400"}`}
+          >
+            {k === "trueProfit"
+              ? "Profit"
+              : k === "perDay"
+                ? "₹/Day"
+                : k.charAt(0).toUpperCase() + k.slice(1)}
+            {sortKey === k && (sortAsc ? " ↑" : " ↓")}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── Mobile Cards ─── */}
+      <div className="md:hidden space-y-2.5">
+        {/* Totals banner */}
+        {trips.length > 0 && (
+          <div className="flex items-center justify-between bg-slate-800/80 rounded-xl px-4 py-3">
+            <span className="text-xs text-slate-400 font-semibold uppercase">
+              Totals
+            </span>
+            <div className="flex gap-4 text-xs">
+              <span className="text-slate-300">
+                Rev {fmtInr(totals.revenue)}
+              </span>
+              <span
+                className={
+                  totals.profit >= 0
+                    ? "text-green-400 font-bold"
+                    : "text-red-400 font-bold"
+                }
+              >
+                {fmtInr(totals.profit)}
+              </span>
+            </div>
+          </div>
+        )}
+        {sorted.map((t, i) => {
+          const tb = tierBadge(t.tier);
+          return (
+            <div
+              key={`m-${t.tripNum}-${i}`}
+              className={`rounded-xl border ${tb.border} ${tb.bg} p-3.5`}
+            >
+              {/* Row 1: Trip#, date, tier badge */}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[11px] text-slate-500">#{t.tripNum}</span>
+                <span className="text-sm text-slate-300">
+                  {fmtDate(t.date)}
+                </span>
+                <span className="text-xs text-slate-500">
+                  {t.driver} {t.truck}
+                </span>
+                <span
+                  className={`ml-auto inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${tb.bg} ${tb.color} border ${tb.border}`}
+                >
+                  {tb.emoji} {tb.label}
+                </span>
+              </div>
+              {/* Row 2: Route */}
+              <div className="text-sm text-slate-400 truncate mb-2">
+                {t.from} → {t.to}
+                {t.cargo && (
+                  <span className="text-slate-600 ml-1.5 text-xs">
+                    ({t.cargo})
+                  </span>
+                )}
+              </div>
+              {/* Row 3: Numbers */}
+              <div className="grid grid-cols-4 gap-1 text-center">
+                <div>
+                  <div className="text-[10px] text-slate-500">Revenue</div>
+                  <div className="text-xs font-medium text-slate-300">
+                    {fmtInr(t.revenue)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500">Profit</div>
+                  <div
+                    className={`text-xs font-bold ${t.trueProfit >= 0 ? "text-green-400" : "text-red-400"}`}
+                  >
+                    {fmtInr(t.trueProfit)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500">₹/Day</div>
+                  <div className={`text-xs font-bold ${tb.color}`}>
+                    {t.perDay ? fmtInr(t.perDay) : "-"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500">Days</div>
+                  <div className="text-xs font-medium text-slate-400">
+                    {t.calDays || "-"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ─── Desktop Table ─── */}
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-700/50">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-800/80 text-slate-400 text-xs uppercase tracking-wider">
@@ -133,9 +241,7 @@ export default function Trips() {
                 </span>
               </th>
               <th className="px-3 py-3 text-left">Truck</th>
-              <th className="px-3 py-3 text-left hidden md:table-cell">
-                Route
-              </th>
+              <th className="px-3 py-3 text-left">Route</th>
               <th className="px-3 py-3 text-left hidden lg:table-cell">
                 Cargo
               </th>
@@ -148,7 +254,7 @@ export default function Trips() {
                 </span>
               </th>
               <th
-                className="px-3 py-3 text-right cursor-pointer hidden md:table-cell"
+                className="px-3 py-3 text-right cursor-pointer"
                 onClick={() => toggleSort("diesel")}
               >
                 <span className="flex items-center justify-end gap-1">
@@ -187,7 +293,7 @@ export default function Trips() {
               const tb = tierBadge(t.tier);
               return (
                 <tr
-                  key={`${t.source}-${t.tripNum}-${i}`}
+                  key={`d-${t.tripNum}-${i}`}
                   className="hover:bg-slate-800/40 transition-colors"
                 >
                   <td className="px-3 py-2.5 text-slate-500">{t.tripNum}</td>
@@ -200,7 +306,7 @@ export default function Trips() {
                       {t.driver}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 text-slate-400 hidden md:table-cell max-w-48 truncate">
+                  <td className="px-3 py-2.5 text-slate-400 max-w-48 truncate">
                     {t.from} → {t.to}
                   </td>
                   <td className="px-3 py-2.5 text-slate-500 hidden lg:table-cell truncate max-w-28">
@@ -209,7 +315,7 @@ export default function Trips() {
                   <td className="px-3 py-2.5 text-right text-slate-300">
                     {fmtInr(t.revenue)}
                   </td>
-                  <td className="px-3 py-2.5 text-right text-slate-400 hidden md:table-cell">
+                  <td className="px-3 py-2.5 text-right text-slate-400">
                     {fmtInr(t.diesel)}
                   </td>
                   <td
@@ -239,19 +345,13 @@ export default function Trips() {
           {trips.length > 0 && (
             <tfoot>
               <tr className="bg-slate-800/80 font-semibold text-slate-200">
-                <td
-                  colSpan={5}
-                  className="px-3 py-3 text-left hidden md:table-cell"
-                >
-                  TOTALS
-                </td>
-                <td colSpan={3} className="px-3 py-3 text-left md:hidden">
+                <td colSpan={5} className="px-3 py-3">
                   TOTALS
                 </td>
                 <td className="px-3 py-3 text-right">
                   {fmtInr(totals.revenue)}
                 </td>
-                <td className="px-3 py-3 text-right hidden md:table-cell">
+                <td className="px-3 py-3 text-right">
                   {fmtInr(totals.diesel)}
                 </td>
                 <td
@@ -259,9 +359,7 @@ export default function Trips() {
                 >
                   {fmtInr(totals.profit)}
                 </td>
-                <td className="px-3 py-3 text-right text-slate-400">-</td>
-                <td className="px-3 py-3 text-right text-slate-400">-</td>
-                <td className="px-3 py-3"></td>
+                <td colSpan={3} className="px-3 py-3"></td>
               </tr>
             </tfoot>
           )}

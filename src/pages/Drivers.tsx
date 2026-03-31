@@ -173,87 +173,184 @@ export default function Drivers() {
         ))}
       </div>
 
-      {/* Comparison Table */}
+      {/* Comparison — Mobile: stacked cards, Desktop: table */}
       {kumar && senthil && (
-        <div className="rounded-xl border border-slate-700/50 overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-800/80">
-                <th className="py-3 px-3 text-left text-xs text-slate-400 uppercase">
-                  Metric
-                </th>
-                <th className="py-3 px-3 text-right text-xs text-slate-400 uppercase">
-                  Kumar T1
-                </th>
-                <th className="py-3 px-3 text-right text-xs text-slate-400 uppercase">
-                  Senthil T2
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <StatRow
-                label="Trips"
-                values={[kumar.totalTrips, senthil.totalTrips]}
-                highlight="higher"
-              />
-              <StatRow
-                label="Revenue"
-                values={[kumar.totalRevenue, senthil.totalRevenue]}
-                fmt={fmtInr}
-                highlight="higher"
-              />
-              <StatRow
-                label="TRUE Profit"
-                values={[kumar.totalProfit, senthil.totalProfit]}
-                fmt={fmtInr}
-                highlight="higher"
-              />
-              <StatRow
-                label="Margin"
-                values={[kumar.margin, senthil.margin]}
-                fmt={(v) => fmtPct(v)}
-                highlight="higher"
-              />
-              <StatRow
-                label="Avg Profit/Trip"
-                values={[kumar.avgProfitPerTrip, senthil.avgProfitPerTrip]}
-                fmt={fmtInr}
-                highlight="higher"
-              />
-              <StatRow
-                label="Avg ₹/Day"
-                values={[kumar.avgPerDay, senthil.avgPerDay]}
-                fmt={fmtInr}
-                highlight="higher"
-              />
-              <StatRow
-                label="Diesel"
-                values={[kumar.totalDiesel, senthil.totalDiesel]}
-                fmt={fmtInr}
-                highlight="lower"
-              />
-              {kumar.dieselPerKm && senthil.dieselPerKm && (
+        <>
+          {/* Mobile comparison */}
+          <div className="md:hidden space-y-2">
+            {[
+              {
+                label: "Trips",
+                k: kumar.totalTrips,
+                s: senthil.totalTrips,
+                fmt: String,
+                hi: "higher" as const,
+              },
+              {
+                label: "Revenue",
+                k: kumar.totalRevenue,
+                s: senthil.totalRevenue,
+                fmt: fmtInr,
+                hi: "higher" as const,
+              },
+              {
+                label: "TRUE Profit",
+                k: kumar.totalProfit,
+                s: senthil.totalProfit,
+                fmt: fmtInr,
+                hi: "higher" as const,
+              },
+              {
+                label: "Margin",
+                k: kumar.margin,
+                s: senthil.margin,
+                fmt: (v: number) => fmtPct(v),
+                hi: "higher" as const,
+              },
+              {
+                label: "Avg ₹/Day",
+                k: kumar.avgPerDay,
+                s: senthil.avgPerDay,
+                fmt: fmtInr,
+                hi: "higher" as const,
+              },
+              {
+                label: "Avg Profit/Trip",
+                k: kumar.avgProfitPerTrip,
+                s: senthil.avgProfitPerTrip,
+                fmt: fmtInr,
+                hi: "higher" as const,
+              },
+              {
+                label: "Diesel",
+                k: kumar.totalDiesel,
+                s: senthil.totalDiesel,
+                fmt: fmtInr,
+                hi: "lower" as const,
+              },
+              {
+                label: "F-Tier Trips",
+                k: kumar.fTierTrips,
+                s: senthil.fTierTrips,
+                fmt: String,
+                hi: "lower" as const,
+              },
+            ].map((row) => {
+              const best =
+                row.hi === "lower"
+                  ? Math.min(row.k, row.s)
+                  : Math.max(row.k, row.s);
+              return (
+                <div
+                  key={row.label}
+                  className="flex items-center bg-slate-800/40 rounded-lg px-4 py-3"
+                >
+                  <span className="text-xs text-slate-400 w-28 shrink-0">
+                    {row.label}
+                  </span>
+                  <div className="flex-1 flex justify-around">
+                    <span
+                      className={`text-sm font-medium ${row.k === best ? "text-green-400" : "text-slate-300"}`}
+                    >
+                      {row.fmt(row.k)}
+                    </span>
+                    <span className="text-slate-600 text-xs">vs</span>
+                    <span
+                      className={`text-sm font-medium ${row.s === best ? "text-green-400" : "text-slate-300"}`}
+                    >
+                      {row.fmt(row.s)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="flex justify-around text-[10px] text-slate-500 px-4">
+              <span className="ml-28">Kumar</span>
+              <span>Senthil</span>
+            </div>
+          </div>
+
+          {/* Desktop comparison table */}
+          <div className="hidden md:block rounded-xl border border-slate-700/50 overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-slate-800/80">
+                  <th className="py-3 px-3 text-left text-xs text-slate-400 uppercase">
+                    Metric
+                  </th>
+                  <th className="py-3 px-3 text-right text-xs text-slate-400 uppercase">
+                    Kumar T1
+                  </th>
+                  <th className="py-3 px-3 text-right text-xs text-slate-400 uppercase">
+                    Senthil T2
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
                 <StatRow
-                  label="₹/km (Diesel)"
-                  values={[kumar.dieselPerKm, senthil.dieselPerKm]}
-                  fmt={(v) => `₹${v.toFixed(1)}`}
+                  label="Trips"
+                  values={[kumar.totalTrips, senthil.totalTrips]}
+                  highlight="higher"
+                />
+                <StatRow
+                  label="Revenue"
+                  values={[kumar.totalRevenue, senthil.totalRevenue]}
+                  fmt={fmtInr}
+                  highlight="higher"
+                />
+                <StatRow
+                  label="TRUE Profit"
+                  values={[kumar.totalProfit, senthil.totalProfit]}
+                  fmt={fmtInr}
+                  highlight="higher"
+                />
+                <StatRow
+                  label="Margin"
+                  values={[kumar.margin, senthil.margin]}
+                  fmt={(v) => fmtPct(v)}
+                  highlight="higher"
+                />
+                <StatRow
+                  label="Avg Profit/Trip"
+                  values={[kumar.avgProfitPerTrip, senthil.avgProfitPerTrip]}
+                  fmt={fmtInr}
+                  highlight="higher"
+                />
+                <StatRow
+                  label="Avg ₹/Day"
+                  values={[kumar.avgPerDay, senthil.avgPerDay]}
+                  fmt={fmtInr}
+                  highlight="higher"
+                />
+                <StatRow
+                  label="Diesel"
+                  values={[kumar.totalDiesel, senthil.totalDiesel]}
+                  fmt={fmtInr}
                   highlight="lower"
                 />
-              )}
-              <StatRow
-                label="Avg Tons/Trip"
-                values={[kumar.avgTons, senthil.avgTons]}
-                fmt={(v) => v.toFixed(1) + "T"}
-                highlight="higher"
-              />
-              <StatRow
-                label="F-Tier Trips"
-                values={[kumar.fTierTrips, senthil.fTierTrips]}
-                highlight="lower"
-              />
-            </tbody>
-          </table>
-        </div>
+                {kumar.dieselPerKm && senthil.dieselPerKm && (
+                  <StatRow
+                    label="₹/km (Diesel)"
+                    values={[kumar.dieselPerKm, senthil.dieselPerKm]}
+                    fmt={(v) => `₹${v.toFixed(1)}`}
+                    highlight="lower"
+                  />
+                )}
+                <StatRow
+                  label="Avg Tons/Trip"
+                  values={[kumar.avgTons, senthil.avgTons]}
+                  fmt={(v) => v.toFixed(1) + "T"}
+                  highlight="higher"
+                />
+                <StatRow
+                  label="F-Tier Trips"
+                  values={[kumar.fTierTrips, senthil.fTierTrips]}
+                  highlight="lower"
+                />
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* F-Tier Bounce Analysis */}
