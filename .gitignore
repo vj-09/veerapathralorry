@@ -1,31 +1,22 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-
-node_modules
-dist
-dist-ssr
-*.local
-
 # Editor / OS
 .vscode
 .idea
 .DS_Store
 *.sw?
 
-# Scraper — credentials, sessions, scraped data
-server/data/ialert-gpt/config.py
-server/data/ialert-gpt/session.json
-server/data/ialert-gpt/downloads/
-server/data/ialert-gpt/raw_data/
-server/data/ialert-gpt/*.json
-
-# Business data — keep private
-server/data/tracker-data.json
+# Node
+node_modules
+dist
 
 # Draft versions
 v3.html
 
+# Business data (Excel files)
+data/
+
+# Archived tracker app
+archive/
+
 # Claude settings
 .claude/
+.vercel
