@@ -6,7 +6,8 @@
     "dev": "concurrently \"node server/index.js\" \"vite\"",
     "server": "node server/index.js",
     "client": "vite",
-    "build": "tsc -b && vite build"
+    "build:data": "node scripts/build-data.js",
+    "build": "node scripts/build-data.js && vite build && node scripts/copy-static.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",
