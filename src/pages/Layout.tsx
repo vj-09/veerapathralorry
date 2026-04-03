@@ -5,6 +5,7 @@ import {
   Users,
   BarChart3,
   MapPin,
+  Map,
   Calendar,
 } from "lucide-react";
 import { useFleet } from "../lib/FleetContext";
@@ -15,6 +16,7 @@ const NAV = [
   { to: "/drivers", icon: Users, label: "Drivers" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/gps", icon: MapPin, label: "GPS" },
+  { to: "/map", icon: Map, label: "Map" },
 ];
 
 function DateFilter() {

@@ -6,6 +6,7 @@ import Trips from "./pages/Trips";
 import Drivers from "./pages/Drivers";
 import Analytics from "./pages/Analytics";
 import GPS from "./pages/GPS";
+import MapView from "./pages/MapView";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="drivers" element={<Drivers />} />
           <Route path="analytics" element={<Analytics />} />
           <Route path="gps" element={<GPS />} />
+          <Route path="map" element={<MapView />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
