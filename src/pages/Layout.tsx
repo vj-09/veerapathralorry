@@ -15,7 +15,6 @@ const NAV = [
   { to: "/trips", icon: Truck, label: "Trips" },
   { to: "/drivers", icon: Users, label: "Drivers" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
-  { to: "/gps", icon: MapPin, label: "GPS" },
   { to: "/map", icon: Map, label: "Map" },
 ];
 

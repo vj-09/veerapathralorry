@@ -179,6 +179,11 @@ const fmtDur = (m: number) => {
 };
 const fmtTime = (ts: string) => ts.slice(11, 16);
 
+const DARK_TILES =
+  "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+const LIGHT_TILES =
+  "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+
 export default function MapView({
   points: allPoints,
   tripColors,
@@ -189,6 +194,7 @@ export default function MapView({
   const [viewMode, setViewMode] = useState<"day" | "trip">("day");
   const [selectedDay, setSelectedDay] = useState("");
   const [selectedTrip, setSelectedTrip] = useState("");
+  const [lightMode, setLightMode] = useState(false);
 
   const windows = useMemo(() => getWindows(selectedDriver), [selectedDriver]);
 
@@ -269,7 +275,7 @@ export default function MapView({
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-screen">
-      <div className="bg-slate-800/90 border-b border-slate-700/50 p-2.5 flex items-center gap-2 z-10 shrink-0">
+      <div className="bg-slate-800/90 border-b border-slate-700/50 p-2 flex items-center gap-1.5 flex-wrap z-10 shrink-0">
         {hasData && (
           <>
             {/* Tab toggle */}
@@ -396,7 +402,7 @@ export default function MapView({
             </select>
 
             {dayStats && (
-              <div className="flex gap-3 text-xs text-slate-300">
+              <div className="hidden sm:flex gap-3 text-xs text-slate-300">
                 <span className="flex items-center gap-1">
                   <Gauge size={13} className="text-green-400" />{" "}
                   {dayStats.distance} km
@@ -415,9 +421,17 @@ export default function MapView({
                 </span>
               </div>
             )}
-            <span className="text-xs text-slate-500 ml-auto">
-              {points.length} pts
-            </span>
+            <div className="flex items-center gap-2 ml-auto">
+              <span className="text-xs text-slate-500 hidden sm:inline">
+                {points.length} pts
+              </span>
+              <button
+                onClick={() => setLightMode(!lightMode)}
+                className="p-1.5 rounded-lg bg-slate-700/50 text-slate-300 hover:bg-slate-700 text-xs"
+              >
+                {lightMode ? "🌙" : "☀️"}
+              </button>
+            </div>
           </>
         )}
       </div>
@@ -499,7 +513,7 @@ export default function MapView({
 
       <div className="flex-1 flex flex-col md:flex-row relative">
         {hasData && stopEvents.length > 0 && (
-          <div className="md:w-72 bg-slate-800/95 border-b md:border-b-0 md:border-r border-slate-700/50 shrink-0 overflow-y-auto z-10 max-h-48 md:max-h-none">
+          <div className="md:w-72 bg-slate-800/95 border-b md:border-b-0 md:border-r border-slate-700/50 shrink-0 overflow-y-auto z-10 max-h-32 md:max-h-none">
             <div className="p-3 border-b border-slate-700/30">
               <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">
                 {selectedDriver} T{selectedDriver === "Senthil" ? "2" : "1"} ·
@@ -560,11 +574,11 @@ export default function MapView({
             center={HOME_BASE}
             zoom={8}
             className="h-full w-full"
-            style={{ background: "#0f172a" }}
+            style={{ background: lightMode ? "#f1f5f9" : "#0f172a" }}
           >
             <TileLayer
               attribution="&copy; OSM"
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              url={lightMode ? LIGHT_TILES : DARK_TILES}
             />
             {mapCoords.length > 1 && <FitBounds pts={mapCoords} />}
 
