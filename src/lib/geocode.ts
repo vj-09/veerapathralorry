@@ -45,7 +45,7 @@ export const CITY_COORDS: Record<string, [number, number]> = {
   // Andhra Pradesh
   Nellore: [14.44, 79.97],
   "Ongole area": [15.5, 80.05],
-  "Andhra Pradesh": [15.5, 80.05],
+  "Andhra Pradesh": [16.51, 80.65], // Vijayawada — generic AP destination
 
   // Kerala
   Thiruvananthapuram: [8.52, 76.94],
@@ -67,3 +67,49 @@ export function getCoords(city: string): [number, number] | null {
 
 // Home base (Thanjavur / Ullikottai area)
 export const HOME_BASE: [number, number] = [10.55, 79.33];
+
+// ─── Reverse Geocoding (Nominatim) ──────────────────────
+const reverseCache: Record<string, string> = {};
+let lastFetchTime = 0;
+
+export async function reverseGeocode(
+  lat: number,
+  lng: number,
+): Promise<string> {
+  const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+  if (reverseCache[key]) return reverseCache[key];
+
+  // Rate limit: 1 req/sec (Nominatim policy)
+  const now = Date.now();
+  const wait = Math.max(0, 1100 - (now - lastFetchTime));
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastFetchTime = Date.now();
+
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=14&addressdetails=1`,
+      { headers: { "User-Agent": "VPT-Fleet-Dashboard/1.0" } },
+    );
+    const data = await res.json();
+    if (data.address) {
+      const a = data.address;
+      const parts = [
+        a.village || a.town || a.city || a.suburb || "",
+        a.county || a.state_district || "",
+        a.state || "",
+        a.postcode || "",
+      ].filter(Boolean);
+      const name = parts.join(", ");
+      reverseCache[key] = name;
+      return name;
+    }
+    const fallback =
+      data.display_name?.split(",").slice(0, 3).join(",") || `${lat}, ${lng}`;
+    reverseCache[key] = fallback;
+    return fallback;
+  } catch {
+    const fallback = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    reverseCache[key] = fallback;
+    return fallback;
+  }
+}

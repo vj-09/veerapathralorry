@@ -115,15 +115,19 @@ for (const file of files) {
                   row["VEHICLE SPEED(kmph)"] ||
                   null,
                 fuel:
-                  row.fuel ||
-                  row["FUEL (ltr) / GAS LEVEL (bar / kg)"] ||
-                  row["FUEL(ltr) / GAS(bar/kg) LEVEL"] ||
-                  row["FUEL (ltr) / GAS CONSUMPTION (kg)"] ||
+                  row["FUEL (ltr) / GAS LEVEL (bar / kg)"] ??
+                  row["FUEL(ltr) / GAS(bar/kg) LEVEL"] ??
+                  row.fuel ??
                   null,
                 odometer:
                   row.odometer ||
                   row["ODOMETER (km)"] ||
                   row["VEHICLE ODOMETER(Km)"] ||
+                  null,
+                ignition: row["IGNITION STATUS"] || row.ignition || null,
+                rpm:
+                  row["ENGINE SPEED (rpm)"] ||
+                  row["ENGINE SPEED / Motor Speed(rpm)"] ||
                   null,
                 address:
                   row.address ||
@@ -147,34 +151,40 @@ for (const file of files) {
 }
 
 function normalize(p) {
+  const speed = p.speed != null ? Number(p.speed) : null;
+  const ignOn = p.ignition === "ON" || (p.rpm != null && Number(p.rpm) > 0);
+  // Status: moving / idling / parked
+  let status = "parked";
+  if (speed > 0) status = "moving";
+  else if (ignOn) status = "idling";
   return {
     lat: Number(p.lat),
     lng: Number(p.lng),
-    timestamp: String(p.timestamp),
-    speed: p.speed != null ? Number(p.speed) : undefined,
-    fuel: p.fuel != null ? Number(p.fuel) : undefined,
-    odometer: p.odometer != null ? Number(p.odometer) : undefined,
-    address: p.address || undefined,
-    vehicle: p.vehicle || undefined,
+    ts: String(p.timestamp),
+    s: speed, // speed
+    f: p.fuel != null ? Number(p.fuel) : undefined, // fuel
+    o: p.odometer != null ? Number(p.odometer) : undefined, // odometer
+    st: status, // status: moving/idling/parked
+    a: p.address || undefined, // address
+    v: p.vehicle || undefined, // vehicle reg number
   };
 }
 
 // Sort by timestamp
-allPoints.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+allPoints.sort((a, b) => a.ts.localeCompare(b.ts));
 
-// Downsample: keep 1 point per 2 min + all stops (speed=0)
+// Downsample: keep 1 point per 2 min + all stops
 const sampled = [];
 let lastKept = null;
 for (const p of allPoints) {
-  const isStop = p.speed === 0 || p.speed == null;
+  const isStop = p.st !== "moving";
   if (!lastKept) {
     sampled.push(p);
     lastKept = p;
     continue;
   }
   const gap =
-    (new Date(p.timestamp).getTime() - new Date(lastKept.timestamp).getTime()) /
-    1000;
+    (new Date(p.ts).getTime() - new Date(lastKept.ts).getTime()) / 1000;
   if (isStop || gap >= 120) {
     sampled.push(p);
     lastKept = p;
@@ -188,5 +198,5 @@ fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
 fs.writeFileSync(OUT_FILE, JSON.stringify(sampled));
 const size = (fs.statSync(OUT_FILE).size / 1024).toFixed(1);
 console.log(
-  `✓ gps-points.json (${size}KB, ${allPoints.length} points, ${new Set(allPoints.map((p) => p.timestamp.slice(0, 10))).size} days)`,
+  `✓ gps-points.json (${size}KB, ${sampled.length} points, ${new Set(sampled.map((p) => p.ts.slice(0, 10))).size} days)`,
 );
