@@ -74,9 +74,14 @@ for (const file of files) {
       for (const sheetName of wb.SheetNames) {
         const data = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
         for (const row of data) {
-          // Try to find lat/lng columns
+          // Try to find lat/lng columns (flexible matching)
           const lat =
-            row.lat || row.latitude || row.Latitude || row.LAT || null;
+            row.lat ||
+            row.latitude ||
+            row.Latitude ||
+            row.LAT ||
+            row.LATITUDE ||
+            null;
           const lng =
             row.lng ||
             row.lon ||
@@ -84,10 +89,12 @@ for (const file of files) {
             row.Longitude ||
             row.LNG ||
             row.LON ||
+            row.LONGITUDE ||
             null;
           const ts =
             row.timestamp ||
             row.Timestamp ||
+            row["TIME STAMP"] ||
             row["LOCATION TIMESTAMP"] ||
             row.time ||
             row.Time ||
@@ -97,13 +104,37 @@ for (const file of files) {
               normalize({
                 lat: Number(lat),
                 lng: Number(lng),
-                timestamp: String(ts),
+                timestamp:
+                  ts instanceof Date
+                    ? ts.toISOString().replace("T", " ").slice(0, 19)
+                    : String(ts),
                 speed:
-                  row.speed || row.Speed || row["VEHICLE SPEED(kmph)"] || null,
-                fuel: row.fuel || row["FUEL(ltr) / GAS(bar/kg) LEVEL"] || null,
-                odometer: row.odometer || row["VEHICLE ODOMETER(Km)"] || null,
-                address: row.address || row["VEHICLE LOCATION"] || null,
-                vehicle: row.vehicle || row["VEHICLE REG. NO."] || null,
+                  row.speed ||
+                  row.Speed ||
+                  row["VEHICLE SPEED (kmph)"] ||
+                  row["VEHICLE SPEED(kmph)"] ||
+                  null,
+                fuel:
+                  row.fuel ||
+                  row["FUEL (ltr) / GAS LEVEL (bar / kg)"] ||
+                  row["FUEL(ltr) / GAS(bar/kg) LEVEL"] ||
+                  row["FUEL (ltr) / GAS CONSUMPTION (kg)"] ||
+                  null,
+                odometer:
+                  row.odometer ||
+                  row["ODOMETER (km)"] ||
+                  row["VEHICLE ODOMETER(Km)"] ||
+                  null,
+                address:
+                  row.address ||
+                  row.LOCATION ||
+                  row["VEHICLE LOCATION"] ||
+                  null,
+                vehicle:
+                  row.vehicle ||
+                  row["REGISTRATION NUMBER"] ||
+                  row["VEHICLE REG. NO."] ||
+                  null,
               }),
             );
           }
@@ -131,8 +162,30 @@ function normalize(p) {
 // Sort by timestamp
 allPoints.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
+// Downsample: keep 1 point per 2 min + all stops (speed=0)
+const sampled = [];
+let lastKept = null;
+for (const p of allPoints) {
+  const isStop = p.speed === 0 || p.speed == null;
+  if (!lastKept) {
+    sampled.push(p);
+    lastKept = p;
+    continue;
+  }
+  const gap =
+    (new Date(p.timestamp).getTime() - new Date(lastKept.timestamp).getTime()) /
+    1000;
+  if (isStop || gap >= 120) {
+    sampled.push(p);
+    lastKept = p;
+  }
+}
+console.log(
+  `  Downsampled: ${allPoints.length} → ${sampled.length} points (keep stops + 1/2min)`,
+);
+
 fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
-fs.writeFileSync(OUT_FILE, JSON.stringify(allPoints));
+fs.writeFileSync(OUT_FILE, JSON.stringify(sampled));
 const size = (fs.statSync(OUT_FILE).size / 1024).toFixed(1);
 console.log(
   `✓ gps-points.json (${size}KB, ${allPoints.length} points, ${new Set(allPoints.map((p) => p.timestamp.slice(0, 10))).size} days)`,
