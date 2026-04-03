@@ -341,17 +341,49 @@ export default function MapView({
 
             {/* Trip view controls */}
             {viewMode === "trip" && (
-              <select
-                value={selectedTrip}
-                onChange={(e) => setSelectedTrip(e.target.value)}
-                className="bg-slate-900 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-1.5"
-              >
-                {windows.map((w) => (
-                  <option key={w.label} value={w.label}>
-                    {w.label} — {w.from} → {w.to} ({w.odoEnd - w.odoStart}km)
-                  </option>
-                ))}
-              </select>
+              <>
+                <button
+                  onClick={() => {
+                    const i = windows.findIndex(
+                      (w) => w.label === selectedTrip,
+                    );
+                    if (i > 0) setSelectedTrip(windows[i - 1].label);
+                  }}
+                  disabled={
+                    windows.findIndex((w) => w.label === selectedTrip) <= 0
+                  }
+                  className="p-1.5 rounded-lg bg-slate-700/50 text-slate-300 disabled:opacity-30 hover:bg-slate-700"
+                >
+                  <span className="text-sm">◀</span>
+                </button>
+                <select
+                  value={selectedTrip}
+                  onChange={(e) => setSelectedTrip(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-1.5"
+                >
+                  {windows.map((w) => (
+                    <option key={w.label} value={w.label}>
+                      {w.label} — {w.from} → {w.to} ({w.odoEnd - w.odoStart}km)
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => {
+                    const i = windows.findIndex(
+                      (w) => w.label === selectedTrip,
+                    );
+                    if (i < windows.length - 1)
+                      setSelectedTrip(windows[i + 1].label);
+                  }}
+                  disabled={
+                    windows.findIndex((w) => w.label === selectedTrip) >=
+                    windows.length - 1
+                  }
+                  className="p-1.5 rounded-lg bg-slate-700/50 text-slate-300 disabled:opacity-30 hover:bg-slate-700"
+                >
+                  <span className="text-sm">▶</span>
+                </button>
+              </>
             )}
 
             <select
