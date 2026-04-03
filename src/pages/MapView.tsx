@@ -194,7 +194,7 @@ export default function MapView({
   const [viewMode, setViewMode] = useState<"day" | "trip">("day");
   const [selectedDay, setSelectedDay] = useState("");
   const [selectedTrip, setSelectedTrip] = useState("");
-  const [lightMode, setLightMode] = useState(false);
+  const [lightMode, setLightMode] = useState(true);
 
   const windows = useMemo(() => getWindows(selectedDriver), [selectedDriver]);
 
