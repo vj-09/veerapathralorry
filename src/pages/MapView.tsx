@@ -601,7 +601,7 @@ export default function MapView({
 
       {/* ═══ MOBILE bottom card ═══ */}
       {hasData && (
-        <div className="md:hidden absolute bottom-16 left-2 right-2 z-[1000]">
+        <div className="md:hidden absolute bottom-20 left-2 right-2 z-[1000]">
           {viewMode === "trip" && tripWindow && (
             <div className="bg-white/95 rounded-2xl shadow-lg px-4 py-3">
               <div className="flex items-center gap-2">

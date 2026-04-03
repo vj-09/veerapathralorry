@@ -22,3 +22,10 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
 }
+
+/* Hide Leaflet attribution on mobile */
+@media (max-width: 767px) {
+  .leaflet-control-attribution {
+    display: none;
+  }
+}
