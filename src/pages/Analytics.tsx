@@ -421,35 +421,45 @@ export default function Analytics() {
                         : "Stable"}
                   </span>
                   <span className="text-xs text-slate-500 ml-auto">
-                    Avg: {g.avgGap}d &middot; Idle: {g.idleDays}d &middot; Max:{" "}
-                    {g.maxGap}d
+                    {g.trips} trips &middot; Avg gap: {g.avgGap}d &middot; Idle:{" "}
+                    {g.idleDays}d
                   </span>
                 </div>
-                {/* Gap bars */}
-                <div className="flex items-end gap-1">
+                {/* Trip nodes with gap bars between them */}
+                <div className="flex items-center gap-0">
                   {g.gaps.map((gap: any, i: number) => {
-                    const h = Math.min(40, gap.days * 10);
                     const color =
                       gap.days <= 2
                         ? "bg-green-500"
                         : gap.days <= 3
                           ? "bg-amber-500"
                           : "bg-red-500";
+                    const textColor =
+                      gap.days <= 2
+                        ? "text-green-400"
+                        : gap.days <= 3
+                          ? "text-amber-400"
+                          : "text-red-400";
                     return (
-                      <div
-                        key={i}
-                        className="flex flex-col items-center gap-0.5 flex-1"
-                      >
-                        <span className="text-[10px] text-slate-500">
-                          {gap.days}d
-                        </span>
-                        <div
-                          className={`w-full rounded-t ${color}`}
-                          style={{ height: `${h}px` }}
-                        />
+                      <div key={i} className="flex items-center flex-1 min-w-0">
+                        {/* Trip dot */}
+                        <div className="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0 z-10" />
+                        {/* Gap line */}
+                        <div className="flex-1 flex flex-col items-center -mx-0.5">
+                          <span
+                            className={`text-[9px] font-medium ${textColor}`}
+                          >
+                            {gap.days}d
+                          </span>
+                          <div
+                            className={`w-full h-1.5 rounded-full ${color}`}
+                          />
+                        </div>
                       </div>
                     );
                   })}
+                  {/* Last trip dot */}
+                  <div className="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0 z-10" />
                 </div>
               </div>
             ))}
