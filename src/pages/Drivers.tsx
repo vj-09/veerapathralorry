@@ -1,108 +1,37 @@
-import { useEffect, useState } from "react";
-import { api } from "../lib/api";
-import { fmtInr, fmtPct, monthLabel, tierBadge } from "../lib/format";
-import type { DriverStats, Trip } from "../lib/types";
-import { Truck, Fuel, Award, AlertTriangle } from "lucide-react";
+import { useFleet } from "../lib/FleetContext";
+import { fmtInr, fmtPct, tierBadge } from "../lib/format";
+import type { DriverStats } from "../lib/types";
+import { Truck, Award, AlertTriangle } from "lucide-react";
 
 export default function Drivers() {
-  const [months, setMonths] = useState<string[]>([]);
-  const [selected, setSelected] = useState("all");
-  const [drivers, setDrivers] = useState<Record<string, DriverStats>>({});
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    api
-      .getMonths()
-      .then((m) => {
-        setMonths(m);
-        if (m.length) setSelected(m[m.length - 1]);
-      })
-      .catch((e) => setError(e.message));
-  }, []);
-
-  useEffect(() => {
-    if (!selected) return;
-    const driverReq =
-      selected === "all" ? api.getAllDrivers() : api.getDrivers(selected);
-    const tripParams = selected === "all" ? {} : { month: selected };
-    Promise.all([driverReq, api.getTrips(tripParams)])
-      .then(([d, t]) => {
-        setDrivers(d);
-        setTrips(t);
-      })
-      .catch((e) => setError(e.message));
-  }, [selected]);
-
-  if (error) return <div className="p-8 text-red-400">{error}</div>;
+  const { driverStats: drivers, filteredTrips: trips } = useFleet();
 
   const kumar = drivers["Kumar"];
   const senthil = drivers["Senthil"];
-
-  if (!kumar && !senthil)
-    return <div className="p-8 text-slate-500">Loading...</div>;
-
   const driverList = [kumar, senthil].filter(Boolean) as DriverStats[];
+
+  if (!driverList.length)
+    return (
+      <div className="p-8 text-slate-500">No driver data in this range.</div>
+    );
 
   // F-tier bounce analysis
   const senthilTrips = trips
     .filter((t) => t.driver === "Senthil")
     .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  const bounces: { fTrip: Trip; nextTrip: Trip | null }[] = [];
+  const bounces: {
+    fTrip: (typeof trips)[0];
+    nextTrip: (typeof trips)[0] | null;
+  }[] = [];
   for (let i = 0; i < senthilTrips.length; i++) {
     if (senthilTrips[i].tier === "F" && i + 1 < senthilTrips.length) {
       bounces.push({ fTrip: senthilTrips[i], nextTrip: senthilTrips[i + 1] });
     }
   }
 
-  function StatRow({
-    label,
-    values,
-    fmt,
-    highlight,
-  }: {
-    label: string;
-    values: (number | null | undefined)[];
-    fmt?: (v: number) => string;
-    highlight?: "higher" | "lower";
-  }) {
-    const format = fmt || ((v: number) => String(v));
-    const nums = values.filter((v) => v != null) as number[];
-    const best = highlight === "lower" ? Math.min(...nums) : Math.max(...nums);
-    return (
-      <tr className="border-b border-slate-800/30">
-        <td className="py-2.5 px-3 text-slate-400 text-sm">{label}</td>
-        {values.map((v, i) => (
-          <td
-            key={i}
-            className={`py-2.5 px-3 text-right text-sm font-medium ${
-              highlight && v === best ? "text-green-400" : "text-slate-300"
-            }`}
-          >
-            {v != null ? format(v) : "-"}
-          </td>
-        ))}
-      </tr>
-    );
-  }
-
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-slate-100">Driver Comparison</h1>
-        <select
-          value={selected}
-          onChange={(e) => setSelected(e.target.value)}
-          className="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2"
-        >
-          <option value="all">All Time</option>
-          {months.map((m) => (
-            <option key={m} value={m}>
-              {monthLabel(m)}
-            </option>
-          ))}
-        </select>
-      </div>
+      <h1 className="text-xl font-bold text-slate-100">Driver Comparison</h1>
 
       {/* Driver Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -173,187 +102,162 @@ export default function Drivers() {
         ))}
       </div>
 
-      {/* Comparison — Mobile: stacked cards, Desktop: table */}
-      {kumar && senthil && (
-        <>
-          {/* Mobile comparison */}
-          <div className="md:hidden space-y-2">
-            {[
-              {
-                label: "Trips",
-                k: kumar.totalTrips,
-                s: senthil.totalTrips,
-                fmt: String,
-                hi: "higher" as const,
-              },
-              {
-                label: "Revenue",
-                k: kumar.totalRevenue,
-                s: senthil.totalRevenue,
-                fmt: fmtInr,
-                hi: "higher" as const,
-              },
-              {
-                label: "TRUE Profit",
-                k: kumar.totalProfit,
-                s: senthil.totalProfit,
-                fmt: fmtInr,
-                hi: "higher" as const,
-              },
-              {
-                label: "Margin",
-                k: kumar.margin,
-                s: senthil.margin,
-                fmt: (v: number) => fmtPct(v),
-                hi: "higher" as const,
-              },
-              {
-                label: "Avg ₹/Day",
-                k: kumar.avgPerDay,
-                s: senthil.avgPerDay,
-                fmt: fmtInr,
-                hi: "higher" as const,
-              },
-              {
-                label: "Avg Profit/Trip",
-                k: kumar.avgProfitPerTrip,
-                s: senthil.avgProfitPerTrip,
-                fmt: fmtInr,
-                hi: "higher" as const,
-              },
-              {
-                label: "Diesel",
-                k: kumar.totalDiesel,
-                s: senthil.totalDiesel,
-                fmt: fmtInr,
-                hi: "lower" as const,
-              },
-              {
-                label: "F-Tier Trips",
-                k: kumar.fTierTrips,
-                s: senthil.fTierTrips,
-                fmt: String,
-                hi: "lower" as const,
-              },
-            ].map((row) => {
-              const best =
-                row.hi === "lower"
-                  ? Math.min(row.k, row.s)
-                  : Math.max(row.k, row.s);
-              return (
-                <div
-                  key={row.label}
-                  className="flex items-center bg-slate-800/40 rounded-lg px-4 py-3"
-                >
-                  <span className="text-xs text-slate-400 w-28 shrink-0">
-                    {row.label}
-                  </span>
-                  <div className="flex-1 flex justify-around">
-                    <span
-                      className={`text-sm font-medium ${row.k === best ? "text-green-400" : "text-slate-300"}`}
+      {/* Comparison */}
+      {kumar &&
+        senthil &&
+        (() => {
+          const rows = [
+            {
+              label: "Trips",
+              k: kumar.totalTrips,
+              s: senthil.totalTrips,
+              fmt: String,
+              hi: "higher" as const,
+            },
+            {
+              label: "Revenue",
+              k: kumar.totalRevenue,
+              s: senthil.totalRevenue,
+              fmt: fmtInr,
+              hi: "higher" as const,
+            },
+            {
+              label: "TRUE Profit",
+              k: kumar.totalProfit,
+              s: senthil.totalProfit,
+              fmt: fmtInr,
+              hi: "higher" as const,
+            },
+            {
+              label: "Margin",
+              k: kumar.margin,
+              s: senthil.margin,
+              fmt: (v: number) => fmtPct(v),
+              hi: "higher" as const,
+            },
+            {
+              label: "Avg ₹/Day",
+              k: kumar.avgPerDay,
+              s: senthil.avgPerDay,
+              fmt: fmtInr,
+              hi: "higher" as const,
+            },
+            {
+              label: "Avg Profit/Trip",
+              k: kumar.avgProfitPerTrip,
+              s: senthil.avgProfitPerTrip,
+              fmt: fmtInr,
+              hi: "higher" as const,
+            },
+            {
+              label: "Diesel",
+              k: kumar.totalDiesel,
+              s: senthil.totalDiesel,
+              fmt: fmtInr,
+              hi: "lower" as const,
+            },
+            {
+              label: "Avg Tons",
+              k: kumar.avgTons,
+              s: senthil.avgTons,
+              fmt: (v: number) => v.toFixed(1) + "T",
+              hi: "higher" as const,
+            },
+            {
+              label: "F-Tier",
+              k: kumar.fTierTrips,
+              s: senthil.fTierTrips,
+              fmt: String,
+              hi: "lower" as const,
+            },
+          ];
+          return (
+            <>
+              {/* Mobile */}
+              <div className="md:hidden space-y-2">
+                {rows.map((r) => {
+                  const best =
+                    r.hi === "lower" ? Math.min(r.k, r.s) : Math.max(r.k, r.s);
+                  return (
+                    <div
+                      key={r.label}
+                      className="flex items-center bg-slate-800/40 rounded-lg px-4 py-3"
                     >
-                      {row.fmt(row.k)}
-                    </span>
-                    <span className="text-slate-600 text-xs">vs</span>
-                    <span
-                      className={`text-sm font-medium ${row.s === best ? "text-green-400" : "text-slate-300"}`}
-                    >
-                      {row.fmt(row.s)}
-                    </span>
-                  </div>
+                      <span className="text-xs text-slate-400 w-28 shrink-0">
+                        {r.label}
+                      </span>
+                      <div className="flex-1 flex justify-around">
+                        <span
+                          className={`text-sm font-medium ${r.k === best ? "text-green-400" : "text-slate-300"}`}
+                        >
+                          {r.fmt(r.k)}
+                        </span>
+                        <span className="text-slate-600 text-xs">vs</span>
+                        <span
+                          className={`text-sm font-medium ${r.s === best ? "text-green-400" : "text-slate-300"}`}
+                        >
+                          {r.fmt(r.s)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="flex justify-around text-[10px] text-slate-500 px-4">
+                  <span className="ml-28">Kumar</span>
+                  <span>Senthil</span>
                 </div>
-              );
-            })}
-            <div className="flex justify-around text-[10px] text-slate-500 px-4">
-              <span className="ml-28">Kumar</span>
-              <span>Senthil</span>
-            </div>
-          </div>
+              </div>
+              {/* Desktop */}
+              <div className="hidden md:block rounded-xl border border-slate-700/50 overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-slate-800/80">
+                      <th className="py-3 px-3 text-left text-xs text-slate-400 uppercase">
+                        Metric
+                      </th>
+                      <th className="py-3 px-3 text-right text-xs text-slate-400 uppercase">
+                        Kumar T1
+                      </th>
+                      <th className="py-3 px-3 text-right text-xs text-slate-400 uppercase">
+                        Senthil T2
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => {
+                      const best =
+                        r.hi === "lower"
+                          ? Math.min(r.k, r.s)
+                          : Math.max(r.k, r.s);
+                      return (
+                        <tr
+                          key={r.label}
+                          className="border-b border-slate-800/30"
+                        >
+                          <td className="py-2.5 px-3 text-slate-400 text-sm">
+                            {r.label}
+                          </td>
+                          <td
+                            className={`py-2.5 px-3 text-right text-sm font-medium ${r.k === best ? "text-green-400" : "text-slate-300"}`}
+                          >
+                            {r.fmt(r.k)}
+                          </td>
+                          <td
+                            className={`py-2.5 px-3 text-right text-sm font-medium ${r.s === best ? "text-green-400" : "text-slate-300"}`}
+                          >
+                            {r.fmt(r.s)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          );
+        })()}
 
-          {/* Desktop comparison table */}
-          <div className="hidden md:block rounded-xl border border-slate-700/50 overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-800/80">
-                  <th className="py-3 px-3 text-left text-xs text-slate-400 uppercase">
-                    Metric
-                  </th>
-                  <th className="py-3 px-3 text-right text-xs text-slate-400 uppercase">
-                    Kumar T1
-                  </th>
-                  <th className="py-3 px-3 text-right text-xs text-slate-400 uppercase">
-                    Senthil T2
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <StatRow
-                  label="Trips"
-                  values={[kumar.totalTrips, senthil.totalTrips]}
-                  highlight="higher"
-                />
-                <StatRow
-                  label="Revenue"
-                  values={[kumar.totalRevenue, senthil.totalRevenue]}
-                  fmt={fmtInr}
-                  highlight="higher"
-                />
-                <StatRow
-                  label="TRUE Profit"
-                  values={[kumar.totalProfit, senthil.totalProfit]}
-                  fmt={fmtInr}
-                  highlight="higher"
-                />
-                <StatRow
-                  label="Margin"
-                  values={[kumar.margin, senthil.margin]}
-                  fmt={(v) => fmtPct(v)}
-                  highlight="higher"
-                />
-                <StatRow
-                  label="Avg Profit/Trip"
-                  values={[kumar.avgProfitPerTrip, senthil.avgProfitPerTrip]}
-                  fmt={fmtInr}
-                  highlight="higher"
-                />
-                <StatRow
-                  label="Avg ₹/Day"
-                  values={[kumar.avgPerDay, senthil.avgPerDay]}
-                  fmt={fmtInr}
-                  highlight="higher"
-                />
-                <StatRow
-                  label="Diesel"
-                  values={[kumar.totalDiesel, senthil.totalDiesel]}
-                  fmt={fmtInr}
-                  highlight="lower"
-                />
-                {kumar.dieselPerKm && senthil.dieselPerKm && (
-                  <StatRow
-                    label="₹/km (Diesel)"
-                    values={[kumar.dieselPerKm, senthil.dieselPerKm]}
-                    fmt={(v) => `₹${v.toFixed(1)}`}
-                    highlight="lower"
-                  />
-                )}
-                <StatRow
-                  label="Avg Tons/Trip"
-                  values={[kumar.avgTons, senthil.avgTons]}
-                  fmt={(v) => v.toFixed(1) + "T"}
-                  highlight="higher"
-                />
-                <StatRow
-                  label="F-Tier Trips"
-                  values={[kumar.fTierTrips, senthil.fTierTrips]}
-                  highlight="lower"
-                />
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {/* F-Tier Bounce Analysis */}
+      {/* F-Tier Bounce */}
       {bounces.length > 0 && (
         <div className="rounded-xl border border-slate-700/50 bg-slate-800/60 p-5">
           <div className="flex items-center gap-2 mb-3">
@@ -364,7 +268,7 @@ export default function Drivers() {
           </div>
           <div className="space-y-2">
             {bounces.map((b, i) => {
-              const nextTb = b.nextTrip ? tierBadge(b.nextTrip.tier) : null;
+              const ntb = b.nextTrip ? tierBadge(b.nextTrip.tier) : null;
               return (
                 <div
                   key={i}
@@ -374,9 +278,9 @@ export default function Drivers() {
                     {tierBadge("F").emoji} ₹{b.fTrip.perDay}/day
                   </span>
                   <span className="text-slate-600">→</span>
-                  {b.nextTrip && nextTb && (
-                    <span className={`font-medium ${nextTb.color}`}>
-                      {nextTb.emoji} ₹{b.nextTrip.perDay}/day ({nextTb.label})
+                  {b.nextTrip && ntb && (
+                    <span className={`font-medium ${ntb.color}`}>
+                      {ntb.emoji} ₹{b.nextTrip.perDay}/day ({ntb.label})
                     </span>
                   )}
                   <span className="text-green-400 ml-auto text-xs">
@@ -396,8 +300,8 @@ export default function Drivers() {
                 (b) => b.nextTrip && ["A", "B"].includes(b.nextTrip.tier),
               ).length
             }
-            /{bounces.length} bounced to A/B tier. But waiting 1 day + C-tier
-            load still beats F-trip + bounce mathematically.
+            /{bounces.length} bounced to A/B. But waiting 1 day + C-tier still
+            beats F-trip + bounce.
           </div>
         </div>
       )}

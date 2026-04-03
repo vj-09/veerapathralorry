@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
-import { api } from "../lib/api";
-import { fmtInr, fmtDate, monthLabel, tierBadge } from "../lib/format";
-import type { Trip } from "../lib/types";
+import { useState, useMemo } from "react";
+import { useFleet } from "../lib/FleetContext";
+import { fmtInr, fmtDate, tierBadge } from "../lib/format";
 import { ArrowUpDown } from "lucide-react";
 
 type SortKey =
@@ -13,34 +12,20 @@ type SortKey =
   | "calDays";
 
 export default function Trips() {
-  const [months, setMonths] = useState<string[]>([]);
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [month, setMonth] = useState("all");
+  const { filteredTrips } = useFleet();
   const [truck, setTruck] = useState("all");
   const [driver, setDriver] = useState("all");
   const [tier, setTier] = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortAsc, setSortAsc] = useState(false);
-  const [error, setError] = useState("");
 
-  useEffect(() => {
-    api
-      .getMonths()
-      .then(setMonths)
-      .catch((e) => setError(e.message));
-  }, []);
-
-  useEffect(() => {
-    const params: Record<string, string> = {};
-    if (month !== "all") params.month = month;
-    if (truck !== "all") params.truck = truck;
-    if (driver !== "all") params.driver = driver;
-    if (tier !== "all") params.tier = tier;
-    api
-      .getTrips(params)
-      .then(setTrips)
-      .catch((e) => setError(e.message));
-  }, [month, truck, driver, tier]);
+  const trips = useMemo(() => {
+    let t = [...filteredTrips];
+    if (truck !== "all") t = t.filter((x) => x.truck === truck);
+    if (driver !== "all") t = t.filter((x) => x.driver === driver);
+    if (tier !== "all") t = t.filter((x) => x.tier === tier);
+    return t;
+  }, [filteredTrips, truck, driver, tier]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(!sortAsc);
@@ -50,20 +35,26 @@ export default function Trips() {
     }
   }
 
-  const sorted = [...trips].sort((a, b) => {
-    let cmp = 0;
-    if (sortKey === "date") cmp = (a.date || "").localeCompare(b.date || "");
-    else cmp = (a[sortKey] || 0) - (b[sortKey] || 0);
-    return sortAsc ? cmp : -cmp;
-  });
+  const sorted = useMemo(() => {
+    const s = [...trips];
+    s.sort((a, b) => {
+      const cmp =
+        sortKey === "date"
+          ? (a.date || "").localeCompare(b.date || "")
+          : (a[sortKey] || 0) - (b[sortKey] || 0);
+      return sortAsc ? cmp : -cmp;
+    });
+    return s;
+  }, [trips, sortKey, sortAsc]);
 
-  const totals = {
-    revenue: trips.reduce((s, t) => s + t.revenue, 0),
-    diesel: trips.reduce((s, t) => s + t.diesel, 0),
-    profit: trips.reduce((s, t) => s + t.trueProfit, 0),
-  };
-
-  if (error) return <div className="p-8 text-red-400">{error}</div>;
+  const totals = useMemo(
+    () => ({
+      revenue: trips.reduce((s, t) => s + t.revenue, 0),
+      diesel: trips.reduce((s, t) => s + t.diesel, 0),
+      profit: trips.reduce((s, t) => s + t.trueProfit, 0),
+    }),
+    [trips],
+  );
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
@@ -71,18 +62,6 @@ export default function Trips() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
-        <select
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          className="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2"
-        >
-          <option value="all">All Months</option>
-          {months.map((m) => (
-            <option key={m} value={m}>
-              {monthLabel(m)}
-            </option>
-          ))}
-        </select>
         <select
           value={truck}
           onChange={(e) => setTruck(e.target.value)}
@@ -137,9 +116,8 @@ export default function Trips() {
         ))}
       </div>
 
-      {/* ─── Mobile Cards ─── */}
+      {/* Mobile Cards */}
       <div className="md:hidden space-y-2.5">
-        {/* Totals banner */}
         {trips.length > 0 && (
           <div className="flex items-center justify-between bg-slate-800/80 rounded-xl px-4 py-3">
             <span className="text-xs text-slate-400 font-semibold uppercase">
@@ -168,7 +146,6 @@ export default function Trips() {
               key={`m-${t.tripNum}-${i}`}
               className={`rounded-xl border ${tb.border} ${tb.bg} p-3.5`}
             >
-              {/* Row 1: Trip#, date, tier badge */}
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-[11px] text-slate-500">#{t.tripNum}</span>
                 <span className="text-sm text-slate-300">
@@ -183,7 +160,6 @@ export default function Trips() {
                   {tb.emoji} {tb.label}
                 </span>
               </div>
-              {/* Row 2: Route */}
               <div className="text-sm text-slate-400 truncate mb-2">
                 {t.from} → {t.to}
                 {t.cargo && (
@@ -192,7 +168,6 @@ export default function Trips() {
                   </span>
                 )}
               </div>
-              {/* Row 3: Numbers */}
               <div className="grid grid-cols-4 gap-1 text-center">
                 <div>
                   <div className="text-[10px] text-slate-500">Revenue</div>
@@ -226,7 +201,7 @@ export default function Trips() {
         })}
       </div>
 
-      {/* ─── Desktop Table ─── */}
+      {/* Desktop Table */}
       <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-700/50">
         <table className="w-full text-sm">
           <thead>
@@ -294,17 +269,15 @@ export default function Trips() {
               return (
                 <tr
                   key={`d-${t.tripNum}-${i}`}
-                  className="hover:bg-slate-800/40 transition-colors"
+                  className="hover:bg-slate-800/40"
                 >
                   <td className="px-3 py-2.5 text-slate-500">{t.tripNum}</td>
                   <td className="px-3 py-2.5 text-slate-300">
                     {fmtDate(t.date)}
                   </td>
                   <td className="px-3 py-2.5">
-                    <span className="text-slate-400">{t.truck}</span>
-                    <span className="text-slate-600 text-xs ml-1">
-                      {t.driver}
-                    </span>
+                    <span className="text-slate-400">{t.truck}</span>{" "}
+                    <span className="text-slate-600 text-xs">{t.driver}</span>
                   </td>
                   <td className="px-3 py-2.5 text-slate-400 max-w-48 truncate">
                     {t.from} → {t.to}
@@ -359,7 +332,7 @@ export default function Trips() {
                 >
                   {fmtInr(totals.profit)}
                 </td>
-                <td colSpan={3} className="px-3 py-3"></td>
+                <td colSpan={3} />
               </tr>
             </tfoot>
           )}
@@ -367,9 +340,7 @@ export default function Trips() {
       </div>
 
       {!trips.length && (
-        <div className="text-center py-12 text-slate-500">
-          No trips found. Check your filters.
-        </div>
+        <div className="text-center py-12 text-slate-500">No trips found.</div>
       )}
     </div>
   );

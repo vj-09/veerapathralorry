@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-import { api } from "../lib/api";
-import { fmtInr, fmtPct, monthLabel, tierBadge } from "../lib/format";
+import { useFleet } from "../lib/FleetContext";
+import { fmtInr, fmtPct, tierBadge } from "../lib/format";
 import {
   AreaChart,
   Area,
@@ -52,64 +51,25 @@ const SEVERITY_STYLES: Record<
 };
 
 export default function Analytics() {
-  const [months, setMonths] = useState<string[]>([]);
-  const [selected, setSelected] = useState("");
-  const [intel, setIntel] = useState<any>(null);
-  const [error, setError] = useState("");
+  const { intelligence: intel, dateFrom, dateTo, filteredTrips } = useFleet();
 
-  useEffect(() => {
-    api
-      .getMonths()
-      .then((m) => {
-        setMonths(m);
-        if (m.length) setSelected(m[m.length - 1]);
-      })
-      .catch((e) => setError(e.message));
-  }, []);
-
-  useEffect(() => {
-    if (!selected) return;
-    api
-      .getIntelligence(selected)
-      .then(setIntel)
-      .catch((e) => setError(e.message));
-  }, [selected]);
-
-  if (error)
+  if (!filteredTrips.length)
     return (
-      <div className="p-8 text-red-400">
-        Failed: {error}. Is the server running?
-      </div>
+      <div className="p-8 text-slate-500">No trips in this date range.</div>
     );
-  if (!intel)
-    return <div className="p-8 text-slate-500">Loading intelligence...</div>;
 
   const { daily, pace, insights, actions, gaps, routes, costStructure, cargo } =
-    intel;
+    intel as any;
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-100">
-            Fleet Intelligence
-          </h1>
-          <p className="text-xs text-slate-500">
-            CEO-level insights & action items
-          </p>
-        </div>
-        <select
-          value={selected}
-          onChange={(e) => setSelected(e.target.value)}
-          className="bg-slate-800 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 w-40"
-        >
-          {months.map((m) => (
-            <option key={m} value={m}>
-              {monthLabel(m)}
-            </option>
-          ))}
-        </select>
+      <div>
+        <h1 className="text-xl font-bold text-slate-100">Fleet Intelligence</h1>
+        <p className="text-xs text-slate-500">
+          {dateFrom} to {dateTo} &middot; {filteredTrips.length} trips &middot;
+          CEO-level insights
+        </p>
       </div>
 
       {/* ━━━ REVENUE PULSE ━━━ */}
