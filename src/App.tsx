@@ -5,6 +5,7 @@ import Dashboard from "./pages/Dashboard";
 import Trips from "./pages/Trips";
 import Drivers from "./pages/Drivers";
 import Analytics from "./pages/Analytics";
+import GPS from "./pages/GPS";
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="trips" element={<Trips />} />
           <Route path="drivers" element={<Drivers />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="gps" element={<GPS />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
