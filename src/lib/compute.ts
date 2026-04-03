@@ -741,12 +741,25 @@ export interface Intelligence {
   cargo: CargoStats[];
 }
 
+const EMPTY_INTEL: Intelligence = {
+  daily: [],
+  pace: null,
+  insights: [],
+  actions: [],
+  gaps: {},
+  routes: [],
+  costStructure: null,
+  cargo: [],
+};
+
 export function computeIntelligence(
   allTrips: Trip[],
   dateFrom: string,
   dateTo: string,
 ): Intelligence {
+  if (!dateFrom || !dateTo || !allTrips.length) return EMPTY_INTEL;
   const trips = filterByDateRange(allTrips, dateFrom, dateTo);
+  if (!trips.length) return EMPTY_INTEL;
   const prev = prevCycleRange(dateFrom);
   const prevTrips = filterByDateRange(allTrips, prev.from, prev.to);
   return {
