@@ -18,10 +18,15 @@ const OUT_FILE = path.join(__dirname, "..", "public", "api", "gps-points.json");
 
 const allPoints = [];
 
-if (!fs.existsSync(GPS_DIR)) {
-  fs.mkdirSync(GPS_DIR, { recursive: true });
-  console.log("Created data/gps/ — drop iAlert exports here");
-  // Write empty file so the app doesn't error
+const hasGpsFiles =
+  fs.existsSync(GPS_DIR) &&
+  fs.readdirSync(GPS_DIR).some((f) => /\.(json|xlsx?)$/i.test(f));
+
+if (!hasGpsFiles) {
+  if (fs.existsSync(OUT_FILE) && fs.statSync(OUT_FILE).size > 10) {
+    console.log("No GPS files in data/gps/ — using committed gps-points.json");
+    process.exit(0);
+  }
   fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
   fs.writeFileSync(OUT_FILE, "[]");
   console.log("✓ Empty gps-points.json created");
