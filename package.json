@@ -7,7 +7,8 @@
     "server": "node server/index.js",
     "client": "vite",
     "build:data": "node scripts/build-data.js",
-    "build": "node scripts/build-data.js && vite build && node scripts/copy-static.js"
+    "build:gps": "node scripts/build-gps.js",
+    "build": "node scripts/build-data.js && node scripts/build-gps.js && vite build && node scripts/copy-static.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",

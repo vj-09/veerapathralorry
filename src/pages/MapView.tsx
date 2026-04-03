@@ -1,341 +1,319 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { useFleet } from "../lib/FleetContext";
-import { fmtInr, fmtDate, tierBadge } from "../lib/format";
-import { getCoords, HOME_BASE } from "../lib/geocode";
-import type { Trip } from "../lib/types";
+import { useEffect, useMemo, useState } from "react";
 import {
   MapContainer,
   TileLayer,
-  Polyline,
   CircleMarker,
   Popup,
   useMap,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { Package, PackageOpen, MapPin } from "lucide-react";
+import { HOME_BASE } from "../lib/geocode";
+import { Navigation, Upload } from "lucide-react";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// ─── OSRM route fetcher ─────────────────────────────────
-interface RouteCache {
-  [key: string]: [number, number][];
-}
-const routeCache: RouteCache = {};
+/*
+  First principles GPS map.
+  - Plots raw GPS data points as small dots
+  - Color by time (morning→night gradient)
+  - Day picker to view one day at a time
+  - No approximations, no guessed routes, no fake lines
+  - Drop GPS data in data/gps/ folder (JSON/CSV)
 
-async function fetchRoute(
-  from: [number, number],
-  to: [number, number],
-): Promise<[number, number][]> {
-  const key = `${from[0]},${from[1]}-${to[0]},${to[1]}`;
-  if (routeCache[key]) return routeCache[key];
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=geojson`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.routes?.[0]?.geometry?.coordinates) {
-      const coords = data.routes[0].geometry.coordinates.map(
-        (c: [number, number]) => [c[1], c[0]] as [number, number],
-      );
-      routeCache[key] = coords;
-      return coords;
-    }
-  } catch {
-    /* fall through */
-  }
-  // Fallback: straight line
-  const line = [from, to];
-  routeCache[key] = line;
-  return line;
+  GPS point format:
+  { lat, lng, timestamp, speed?, fuel?, odometer?, address? }
+*/
+
+interface GPSPoint {
+  lat: number;
+  lng: number;
+  timestamp: string; // ISO or any parseable
+  speed?: number;
+  fuel?: number;
+  odometer?: number;
+  address?: string;
+  vehicle?: string;
 }
 
-// ─── Fit map bounds to route ─────────────────────────────
+// Time → color (blue dawn → green morning → yellow noon → orange evening → purple night)
+function timeColor(hour: number): string {
+  if (hour < 6) return "#818cf8"; // indigo - night
+  if (hour < 9) return "#38bdf8"; // sky - dawn
+  if (hour < 12) return "#22c55e"; // green - morning
+  if (hour < 15) return "#eab308"; // yellow - noon
+  if (hour < 18) return "#f97316"; // orange - afternoon
+  if (hour < 21) return "#ef4444"; // red - evening
+  return "#818cf8"; // indigo - night
+}
+
 function FitBounds({ points }: { points: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
     if (points.length >= 2) {
       const L = (window as any).L;
-      if (L) {
-        const bounds = L.latLngBounds(points);
-        map.fitBounds(bounds, { padding: [40, 40] });
-      }
+      if (L) map.fitBounds(L.latLngBounds(points), { padding: [40, 40] });
     }
   }, [points, map]);
   return null;
 }
 
-// ─── Route segment with resolved geometry ────────────────
-interface RouteSeg {
-  type: "loaded" | "empty";
-  from: [number, number];
-  to: [number, number];
-  fromCity: string;
-  toCity: string;
-  trip: Trip | null;
-  points: [number, number][];
-}
-
 export default function MapView() {
-  const { filteredTrips } = useFleet();
-  const [selectedDriver, setSelectedDriver] = useState("Senthil");
-  const [selectedTrip, setSelectedTrip] = useState<number | "all">("all");
-  const [routes, setRoutes] = useState<RouteSeg[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [allPoints, setAllPoints] = useState<GPSPoint[]>([]);
+  const [selectedDay, setSelectedDay] = useState<string>("all");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const driverTrips = useMemo(
-    () =>
-      filteredTrips
-        .filter(
-          (t) =>
-            t.driver === selectedDriver &&
-            t.from &&
-            t.to &&
-            !t.from.startsWith("("),
-        )
-        .sort((a, b) => (a.date || "").localeCompare(b.date || "")),
-    [filteredTrips, selectedDriver],
-  );
-
-  const tripsToShow = useMemo(
-    () =>
-      selectedTrip === "all"
-        ? driverTrips
-        : driverTrips.filter((t) => t.tripNum === selectedTrip),
-    [driverTrips, selectedTrip],
-  );
-
-  // Build route segments and fetch road geometry
-  const buildRoutes = useCallback(async () => {
-    setLoading(true);
-    const segs: RouteSeg[] = [];
-
-    for (let i = 0; i < tripsToShow.length; i++) {
-      const t = tripsToShow[i];
-      const fromCoord = getCoords(t.from);
-      const toCoord = getCoords(t.to);
-      if (!fromCoord || !toCoord) continue;
-
-      // LOADED: origin → destination (green)
-      const loadedPts = await fetchRoute(fromCoord, toCoord);
-      segs.push({
-        type: "loaded",
-        from: fromCoord,
-        to: toCoord,
-        fromCity: t.from,
-        toCity: t.to,
-        trip: t,
-        points: loadedPts,
-      });
-
-      // EMPTY RETURN: destination → next trip origin (amber dashed)
-      const next = i + 1 < tripsToShow.length ? tripsToShow[i + 1] : null;
-      const returnTo = next ? getCoords(next.from) : HOME_BASE;
-      if (
-        returnTo &&
-        (returnTo[0] !== toCoord[0] || returnTo[1] !== toCoord[1])
-      ) {
-        const emptyPts = await fetchRoute(toCoord, returnTo);
-        segs.push({
-          type: "empty",
-          from: toCoord,
-          to: returnTo,
-          fromCity: t.to,
-          toCity: next?.from || "Home Base",
-          trip: null,
-          points: emptyPts,
-        });
-      }
-    }
-    setRoutes(segs);
-    setLoading(false);
-  }, [tripsToShow]);
-
+  // Load GPS data from static JSON
   useEffect(() => {
-    buildRoutes();
-  }, [buildRoutes]);
+    fetch("/api/gps-points.json")
+      .then((r) => {
+        if (!r.ok) throw new Error("No GPS data yet");
+        return r.json();
+      })
+      .then((data: GPSPoint[]) => {
+        setAllPoints(data);
+        // Default to latest day
+        const days = [
+          ...new Set(data.map((p) => p.timestamp.slice(0, 10))),
+        ].sort();
+        if (days.length > 0) setSelectedDay(days[days.length - 1]);
+        setLoading(false);
+      })
+      .catch(() => {
+        setAllPoints([]);
+        setLoading(false);
+      });
+  }, []);
 
-  // All points for fitting bounds
-  const allPoints = useMemo(() => routes.flatMap((r) => r.points), [routes]);
+  // Available days
+  const days = useMemo(() => {
+    return [...new Set(allPoints.map((p) => p.timestamp.slice(0, 10)))].sort();
+  }, [allPoints]);
 
-  // Stats
-  const loadedSegs = routes.filter((r) => r.type === "loaded");
-  const emptySegs = routes.filter((r) => r.type === "empty");
+  // Filter by selected day
+  const points = useMemo(() => {
+    if (selectedDay === "all") return allPoints;
+    return allPoints.filter((p) => p.timestamp.startsWith(selectedDay));
+  }, [allPoints, selectedDay]);
+
+  // Map coords for bounds
+  const mapCoords = useMemo(
+    () => points.map((p) => [p.lat, p.lng] as [number, number]),
+    [points],
+  );
+
+  const hasData = allPoints.length > 0;
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] md:h-screen">
       {/* Controls */}
-      <div className="bg-slate-800/90 border-b border-slate-700/50 p-3 flex flex-wrap gap-2 items-center z-10 shrink-0">
-        <select
-          value={selectedDriver}
-          onChange={(e) => {
-            setSelectedDriver(e.target.value);
-            setSelectedTrip("all");
-          }}
-          className="bg-slate-900 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2"
-        >
-          <option value="Senthil">Senthil T2</option>
-          <option value="Kumar">Kumar T1</option>
-        </select>
-        <select
-          value={selectedTrip}
-          onChange={(e) =>
-            setSelectedTrip(
-              e.target.value === "all" ? "all" : Number(e.target.value),
-            )
-          }
-          className="bg-slate-900 border border-slate-700 text-slate-300 text-sm rounded-lg px-3 py-2 max-w-60"
-        >
-          <option value="all">All Trips ({driverTrips.length})</option>
-          {driverTrips.map((t) => (
-            <option key={t.tripNum} value={t.tripNum}>
-              T{t.tripNum} {fmtDate(t.date)} {t.from}→{t.to}
-            </option>
-          ))}
-        </select>
-        {loading && (
-          <span className="text-xs text-slate-500 animate-pulse">
-            Loading routes...
-          </span>
+      <div className="bg-slate-800/90 border-b border-slate-700/50 p-2.5 flex items-center gap-2 z-10 shrink-0 overflow-x-auto">
+        {hasData && (
+          <>
+            <span className="text-xs text-slate-500 shrink-0">Day:</span>
+            <div className="flex gap-1">
+              {days.map((d) => {
+                const label = new Date(d + "T00:00:00").toLocaleDateString(
+                  "en-IN",
+                  { day: "numeric", month: "short" },
+                );
+                const count = allPoints.filter((p) =>
+                  p.timestamp.startsWith(d),
+                ).length;
+                return (
+                  <button
+                    key={d}
+                    onClick={() => setSelectedDay(d)}
+                    className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
+                      selectedDay === d
+                        ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                        : "bg-slate-900 text-slate-400 border border-slate-700/50 hover:text-slate-200"
+                    }`}
+                  >
+                    {label}{" "}
+                    <span className="text-[10px] opacity-60">({count})</span>
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => setSelectedDay("all")}
+                className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg ${
+                  selectedDay === "all"
+                    ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                    : "bg-slate-900 text-slate-400 border border-slate-700/50"
+                }`}
+              >
+                All
+              </button>
+            </div>
+            <span className="text-xs text-slate-500 ml-auto shrink-0">
+              {points.length} points
+            </span>
+          </>
         )}
-
-        {/* Legend */}
-        <div className="flex gap-3 ml-auto text-xs">
-          <span className="flex items-center gap-1">
-            <span className="w-4 h-1 bg-green-500 rounded-full inline-block" />
-            <Package size={12} className="text-green-400" /> Loaded
-          </span>
-          <span className="flex items-center gap-1">
-            <span
-              className="w-4 h-1 bg-amber-500 rounded-full inline-block opacity-60"
-              style={{ borderTop: "2px dashed #f59e0b" }}
-            />
-            <PackageOpen size={12} className="text-amber-400" /> Empty
-          </span>
-          <span className="text-slate-500">
-            {loadedSegs.length} loaded · {emptySegs.length} empty
-          </span>
-        </div>
+        {!hasData && !loading && (
+          <span className="text-xs text-slate-500">No GPS data loaded</span>
+        )}
       </div>
 
-      {/* Map */}
       <div className="flex-1 relative">
         <MapContainer
           center={HOME_BASE}
-          zoom={7}
+          zoom={8}
           className="h-full w-full"
           style={{ background: "#0f172a" }}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+            attribution="&copy; OSM"
             url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           />
+          {mapCoords.length > 1 && <FitBounds points={mapCoords} />}
 
-          {allPoints.length > 0 && <FitBounds points={allPoints} />}
-
-          {/* Route lines */}
-          {routes.map((seg, i) => (
-            <Polyline
-              key={i}
-              positions={seg.points}
-              pathOptions={{
-                color: seg.type === "loaded" ? "#22c55e" : "#f59e0b",
-                weight: seg.type === "loaded" ? 4 : 3,
-                opacity: seg.type === "loaded" ? 0.9 : 0.5,
-                dashArray: seg.type === "empty" ? "8 6" : undefined,
-              }}
-            />
-          ))}
-
-          {/* Stop markers */}
-          {routes.map((seg, i) => (
-            <CircleMarker
-              key={`from-${i}`}
-              center={seg.from}
-              radius={seg.type === "loaded" ? 7 : 4}
-              pathOptions={{
-                fillColor: seg.type === "loaded" ? "#22c55e" : "#f59e0b",
-                fillOpacity: 0.9,
-                color: "#0f172a",
-                weight: 2,
-              }}
-            >
-              <Popup>
-                <div style={{ color: "#1e293b", minWidth: 180 }}>
-                  <div style={{ fontWeight: "bold", fontSize: 14 }}>
-                    <MapPin
-                      size={14}
-                      style={{ display: "inline", marginRight: 4 }}
-                    />
-                    {seg.fromCity}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>
-                    {seg.type === "loaded"
-                      ? "Loading Point"
-                      : "Unloading Point (return start)"}
-                  </div>
-                  {seg.trip && (
+          {/* Raw GPS dots */}
+          {points.map((p, i) => {
+            const hour = new Date(p.timestamp).getHours();
+            const color = timeColor(hour);
+            const time = new Date(p.timestamp).toLocaleTimeString("en-IN", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+            return (
+              <CircleMarker
+                key={i}
+                center={[p.lat, p.lng]}
+                radius={4}
+                pathOptions={{
+                  fillColor: color,
+                  fillOpacity: 0.8,
+                  color: color,
+                  weight: 1,
+                  opacity: 0.4,
+                }}
+              >
+                <Popup>
+                  <div
+                    style={{ color: "#1e293b", minWidth: 200, fontSize: 12 }}
+                  >
+                    {p.address && (
+                      <div
+                        style={{
+                          fontWeight: "bold",
+                          fontSize: 14,
+                          marginBottom: 4,
+                        }}
+                      >
+                        <Navigation
+                          size={13}
+                          style={{
+                            display: "inline",
+                            marginRight: 4,
+                            color: "#3b82f6",
+                          }}
+                        />
+                        {p.address}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 11, color: "#64748b" }}>
+                      {p.timestamp}
+                    </div>
+                    <div
+                      style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}
+                    >
+                      {p.lat.toFixed(5)}, {p.lng.toFixed(5)}
+                    </div>
                     <div
                       style={{
-                        fontSize: 12,
+                        display: "flex",
+                        gap: 12,
                         marginTop: 6,
-                        borderTop: "1px solid #e2e8f0",
-                        paddingTop: 4,
+                        fontSize: 11,
                       }}
                     >
-                      <div>
-                        T{seg.trip.tripNum} · {fmtDate(seg.trip.date)}
-                      </div>
-                      <div>
-                        {seg.trip.cargo}{" "}
-                        {seg.trip.weight ? `· ${seg.trip.weight}T` : ""}
-                      </div>
-                      <div style={{ fontWeight: "bold" }}>
-                        {fmtInr(seg.trip.revenue)} rev →{" "}
-                        {fmtInr(seg.trip.trueProfit)} profit
-                      </div>
-                      <div>
-                        {seg.trip.perDay > 0
-                          ? `${fmtInr(seg.trip.perDay)}/day`
-                          : ""}{" "}
-                        {tierBadge(seg.trip.tier).emoji}
-                      </div>
+                      {p.speed != null && (
+                        <span>
+                          Speed: <strong>{p.speed} km/h</strong>
+                        </span>
+                      )}
+                      {p.fuel != null && (
+                        <span>
+                          Fuel: <strong>{p.fuel}L</strong>
+                        </span>
+                      )}
+                      {p.odometer != null && (
+                        <span>
+                          Odo: <strong>{p.odometer}km</strong>
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
-              </Popup>
-            </CircleMarker>
-          ))}
-
-          {/* Last destination marker */}
-          {routes.length > 0 &&
-            (() => {
-              const last = routes[routes.length - 1];
-              return (
-                <CircleMarker
-                  center={last.to}
-                  radius={7}
-                  pathOptions={{
-                    fillColor: "#ef4444",
-                    fillOpacity: 0.9,
-                    color: "#0f172a",
-                    weight: 2,
-                  }}
-                >
-                  <Popup>
-                    <div style={{ color: "#1e293b" }}>
-                      <div style={{ fontWeight: "bold", fontSize: 14 }}>
-                        {last.toCity}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#64748b" }}>
-                        {last.type === "loaded"
-                          ? "Unloading Point"
-                          : "Return destination"}
-                      </div>
-                    </div>
-                  </Popup>
-                </CircleMarker>
-              );
-            })()}
+                  </div>
+                </Popup>
+              </CircleMarker>
+            );
+          })}
         </MapContainer>
+
+        {/* Empty state overlay */}
+        {!hasData && !loading && (
+          <div className="absolute inset-0 flex items-center justify-center z-[1000] pointer-events-none">
+            <div className="bg-slate-800/95 border border-slate-700/50 rounded-2xl p-8 max-w-md text-center pointer-events-auto">
+              <Upload size={32} className="text-slate-500 mx-auto mb-3" />
+              <h2 className="text-lg font-bold text-slate-200 mb-2">
+                Drop GPS Data
+              </h2>
+              <p className="text-sm text-slate-400 mb-4">
+                Run <code className="text-orange-400">npm run build:gps</code>{" "}
+                after placing iAlert exports in{" "}
+                <code className="text-orange-400">data/gps/</code>
+              </p>
+              <div className="text-left bg-slate-900/60 rounded-lg p-4 text-xs text-slate-400 space-y-1.5">
+                <div className="text-slate-500 font-semibold uppercase text-[10px] mb-2">
+                  Expected format (JSON array):
+                </div>
+                <pre className="text-[11px] text-cyan-400 overflow-x-auto">{`[
+  {
+    "lat": 10.55,
+    "lng": 79.33,
+    "timestamp": "2026-03-21T14:30:00",
+    "speed": 45,
+    "fuel": 75,
+    "odometer": 20190,
+    "address": "SH 146, Ullikottai, TN"
+  }
+]`}</pre>
+              </div>
+              <div className="mt-4 text-xs text-slate-500">
+                Color: <span style={{ color: "#38bdf8" }}>dawn</span> →{" "}
+                <span style={{ color: "#22c55e" }}>morning</span> →{" "}
+                <span style={{ color: "#eab308" }}>noon</span> →{" "}
+                <span style={{ color: "#f97316" }}>evening</span> →{" "}
+                <span style={{ color: "#818cf8" }}>night</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Time legend */}
+        {hasData && (
+          <div className="absolute bottom-4 left-4 z-[1000] bg-slate-800/90 border border-slate-700/50 rounded-lg px-3 py-2 flex gap-2 items-center text-[10px]">
+            <span className="text-slate-500">Time:</span>
+            {[
+              { h: 3, label: "Night" },
+              { h: 7, label: "Dawn" },
+              { h: 10, label: "AM" },
+              { h: 13, label: "Noon" },
+              { h: 16, label: "PM" },
+              { h: 19, label: "Eve" },
+            ].map((t) => (
+              <span key={t.h} className="flex items-center gap-1">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: timeColor(t.h) }}
+                />
+                {t.label}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
