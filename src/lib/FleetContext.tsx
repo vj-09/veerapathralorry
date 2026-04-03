@@ -3,6 +3,7 @@ import type { Trip, Metrics, DriverStats, CargoStats } from "./types";
 import {
   generateCycles,
   filterByDateRange,
+  fillMissingCalDays,
   computeMetrics,
   computeDriverStats,
   computeCargoStats,
@@ -63,7 +64,8 @@ export function FleetProvider({ children }: { children: React.ReactNode }) {
   // Load data once
   useEffect(() => {
     loadTrips()
-      .then((trips) => {
+      .then((raw) => {
+        const trips = fillMissingCalDays(raw);
         setAllTrips(trips);
         // Default to latest billing cycle
         const cycles = generateCycles(trips);

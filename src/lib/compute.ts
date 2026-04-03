@@ -74,6 +74,54 @@ export function filterByDateRange(
   return trips.filter((t) => t.date && t.date >= from && t.date <= to);
 }
 
+// Fill missing calDays/perDay/tier by computing gap to next trip by same driver
+export function fillMissingCalDays(trips: Trip[]): Trip[] {
+  const byDriver: Record<string, Trip[]> = {};
+  trips.forEach((t) => {
+    (byDriver[t.driver] ??= []).push(t);
+  });
+
+  const patched = new Map<
+    Trip,
+    { calDays: number; perDay: number; tier: string }
+  >();
+
+  for (const driverTrips of Object.values(byDriver)) {
+    const sorted = [...driverTrips].sort((a, b) =>
+      (a.date || "").localeCompare(b.date || ""),
+    );
+    for (let i = 0; i < sorted.length; i++) {
+      const t = sorted[i];
+      if (t.calDays > 0 && t.perDay > 0) continue; // already has data
+      if (t.trueProfit === 0 && t.revenue === 0) continue; // empty trip
+
+      let days = 1; // default for latest trip (no next trip yet)
+      if (i + 1 < sorted.length && sorted[i + 1].date && t.date) {
+        days = Math.max(
+          1,
+          Math.ceil(
+            (new Date(sorted[i + 1].date + "T00:00:00").getTime() -
+              new Date(t.date + "T00:00:00").getTime()) /
+              86400000,
+          ),
+        );
+      }
+      const perDay = days > 0 ? Math.round(t.trueProfit / days) : 0;
+      patched.set(t, {
+        calDays: days,
+        perDay,
+        tier: perDay > 0 ? getTier(perDay) : "F",
+      });
+    }
+  }
+
+  if (patched.size === 0) return trips;
+  return trips.map((t) => {
+    const p = patched.get(t);
+    return p ? { ...t, calDays: p.calDays, perDay: p.perDay, tier: p.tier } : t;
+  });
+}
+
 function prevCycleRange(from: string) {
   const f = new Date(from + "T00:00:00");
   const prevTo = new Date(f.getTime() - 86400000);

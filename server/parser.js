@@ -236,6 +236,10 @@ function parseTripLog(data, headerIdx, source) {
     if (revenue <= 0) continue;
 
     const truckInfo = resolveTruck(r[I.truck]);
+    const tripDate = parseDate(r[I.date]);
+    // Skip summary/stats rows with no truck or no date
+    if (!truckInfo && !tripDate) continue;
+
     const driver = r[I.driver]
       ? String(r[I.driver]).trim()
       : truckInfo?.driver || "Unknown";
