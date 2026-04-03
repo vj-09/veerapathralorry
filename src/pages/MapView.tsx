@@ -191,7 +191,7 @@ export default function MapView({
   selectedDriver,
   onDriverChange,
 }: Props) {
-  const [viewMode, setViewMode] = useState<"day" | "trip">("day");
+  const [viewMode, setViewMode] = useState<"day" | "trip">("trip");
   const [selectedDay, setSelectedDay] = useState("");
   const [selectedTrip, setSelectedTrip] = useState("");
   const [lightMode, setLightMode] = useState(true);
