@@ -274,7 +274,7 @@ export default function MapView({
   const hasData = allPoints.length > 0;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] md:h-screen relative">
+    <div className="flex flex-col h-[calc(100vh-7rem)] md:h-screen relative overflow-hidden">
       {/* ═══ DESKTOP header (hidden on mobile) ═══ */}
       <div className="hidden md:flex bg-slate-800/90 border-b border-slate-700/50 p-2.5 items-center gap-2 z-10 shrink-0">
         {hasData && (
