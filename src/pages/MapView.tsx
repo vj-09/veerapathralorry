@@ -274,11 +274,11 @@ export default function MapView({
   const hasData = allPoints.length > 0;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] md:h-screen">
-      <div className="bg-slate-800/90 border-b border-slate-700/50 p-2 flex items-center gap-1.5 flex-wrap z-10 shrink-0">
+    <div className="flex flex-col h-[calc(100vh-4rem)] md:h-screen relative">
+      {/* ═══ DESKTOP header (hidden on mobile) ═══ */}
+      <div className="hidden md:flex bg-slate-800/90 border-b border-slate-700/50 p-2.5 items-center gap-2 z-10 shrink-0">
         {hasData && (
           <>
-            {/* Tab toggle */}
             <div className="flex bg-slate-900 rounded-lg p-0.5 shrink-0">
               <button
                 onClick={() => setViewMode("day")}
@@ -293,8 +293,6 @@ export default function MapView({
                 Trip
               </button>
             </div>
-
-            {/* Day view controls */}
             {viewMode === "day" && (
               <>
                 <button
@@ -344,8 +342,6 @@ export default function MapView({
                 </button>
               </>
             )}
-
-            {/* Trip view controls */}
             {viewMode === "trip" && (
               <>
                 <button
@@ -391,7 +387,6 @@ export default function MapView({
                 </button>
               </>
             )}
-
             <select
               value={selectedDriver}
               onChange={(e) => onDriverChange(e.target.value)}
@@ -400,9 +395,8 @@ export default function MapView({
               <option value="Senthil">Senthil T2</option>
               <option value="Kumar">Kumar T1</option>
             </select>
-
             {dayStats && (
-              <div className="hidden sm:flex gap-3 text-xs text-slate-300">
+              <div className="flex gap-3 text-xs text-slate-300">
                 <span className="flex items-center gap-1">
                   <Gauge size={13} className="text-green-400" />{" "}
                   {dayStats.distance} km
@@ -411,7 +405,7 @@ export default function MapView({
                   <span className="text-slate-500">Max</span>{" "}
                   {dayStats.maxSpeed} km/h
                 </span>
-                <span className="hidden sm:inline">
+                <span>
                   <span className="text-slate-500">Avg</span>{" "}
                   {dayStats.avgSpeed} km/h
                 </span>
@@ -422,7 +416,7 @@ export default function MapView({
               </div>
             )}
             <div className="flex items-center gap-2 ml-auto">
-              <span className="text-xs text-slate-500 hidden sm:inline">
+              <span className="text-xs text-slate-500">
                 {points.length} pts
               </span>
               <button
@@ -436,10 +430,10 @@ export default function MapView({
         )}
       </div>
 
-      {/* Trip info bar — day view: matched trips, trip view: selected trip details */}
+      {/* ═══ DESKTOP trip info bar (hidden on mobile) ═══ */}
       {viewMode === "day" && dayTrips.length > 0 && (
         <div
-          className="border-b border-slate-700/30 px-3 py-2 flex flex-wrap gap-3 z-10 shrink-0"
+          className="hidden md:flex border-b border-slate-700/30 px-3 py-2 flex-wrap gap-3 z-10 shrink-0"
           style={{ background: "rgba(15,23,42,0.9)" }}
         >
           {dayTrips.map((dt) => (
@@ -467,7 +461,7 @@ export default function MapView({
       )}
       {viewMode === "trip" && tripWindow && (
         <div
-          className="border-b border-slate-700/30 px-3 py-2 z-10 shrink-0"
+          className="hidden md:block border-b border-slate-700/30 px-3 py-2 z-10 shrink-0"
           style={{ background: "rgba(15,23,42,0.9)" }}
         >
           <div className="flex items-center gap-3 text-sm flex-wrap">
@@ -511,9 +505,158 @@ export default function MapView({
         </div>
       )}
 
+      {/* ═══ MOBILE floating controls (Google Maps style) ═══ */}
+      {hasData && (
+        <div className="md:hidden absolute top-2 left-2 right-2 z-[1000] flex items-center gap-1.5">
+          <div className="flex bg-white/90 rounded-full shadow-lg p-0.5 shrink-0">
+            <button
+              onClick={() => setViewMode("day")}
+              className={`px-3 py-1.5 text-xs rounded-full font-medium ${viewMode === "day" ? "bg-slate-800 text-white" : "text-slate-600"}`}
+            >
+              Day
+            </button>
+            <button
+              onClick={() => setViewMode("trip")}
+              className={`px-3 py-1.5 text-xs rounded-full font-medium ${viewMode === "trip" ? "bg-slate-800 text-white" : "text-slate-600"}`}
+            >
+              Trip
+            </button>
+          </div>
+          <button
+            onClick={() => {
+              if (viewMode === "day") {
+                const i = days.indexOf(selectedDay);
+                if (i > 0) setSelectedDay(days[i - 1]);
+              } else {
+                const i = windows.findIndex((w) => w.label === selectedTrip);
+                if (i > 0) setSelectedTrip(windows[i - 1].label);
+              }
+            }}
+            className="w-8 h-8 rounded-full bg-white/90 shadow-lg flex items-center justify-center text-slate-600"
+          >
+            ◀
+          </button>
+          <select
+            value={viewMode === "day" ? selectedDay : selectedTrip}
+            onChange={(e) =>
+              viewMode === "day"
+                ? setSelectedDay(e.target.value)
+                : setSelectedTrip(e.target.value)
+            }
+            className="flex-1 bg-white/90 shadow-lg text-slate-800 text-xs font-medium rounded-full px-3 py-2 min-w-0"
+          >
+            {viewMode === "day" ? (
+              <>
+                {recentDays.map((d) => (
+                  <option key={d} value={d}>
+                    {new Date(d + "T00:00:00").toLocaleDateString("en-IN", {
+                      weekday: "short",
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </option>
+                ))}
+                <optgroup label="Older">
+                  {days.slice(0, -7).map((d) => (
+                    <option key={d} value={d}>
+                      {new Date(d + "T00:00:00").toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </option>
+                  ))}
+                </optgroup>
+              </>
+            ) : (
+              windows.map((w) => (
+                <option key={w.label} value={w.label}>
+                  {w.label} {w.from}→{w.to}
+                </option>
+              ))
+            )}
+          </select>
+          <button
+            onClick={() => {
+              if (viewMode === "day") {
+                const i = days.indexOf(selectedDay);
+                if (i < days.length - 1) setSelectedDay(days[i + 1]);
+              } else {
+                const i = windows.findIndex((w) => w.label === selectedTrip);
+                if (i < windows.length - 1)
+                  setSelectedTrip(windows[i + 1].label);
+              }
+            }}
+            className="w-8 h-8 rounded-full bg-white/90 shadow-lg flex items-center justify-center text-slate-600"
+          >
+            ▶
+          </button>
+          <button
+            onClick={() => setLightMode(!lightMode)}
+            className="w-8 h-8 rounded-full bg-white/90 shadow-lg flex items-center justify-center text-sm"
+          >
+            {lightMode ? "🌙" : "☀️"}
+          </button>
+        </div>
+      )}
+
+      {/* ═══ MOBILE bottom card ═══ */}
+      {hasData && (
+        <div className="md:hidden absolute bottom-16 left-2 right-2 z-[1000]">
+          {viewMode === "trip" && tripWindow && (
+            <div className="bg-white/95 rounded-2xl shadow-lg px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span
+                  className="w-3 h-3 rounded-full"
+                  style={{
+                    background: tripColors[selectedTrip] || UNKNOWN_COLOR,
+                  }}
+                />
+                <span className="font-black text-slate-800">
+                  {selectedTrip}
+                </span>
+                <span className="text-slate-600 text-sm truncate">
+                  {tripWindow.from} → {tripWindow.to}
+                </span>
+                <span className="text-slate-800 font-medium text-sm ml-auto">
+                  {fmtInr(tripWindow.revenue)}
+                </span>
+              </div>
+              <div className="flex gap-3 mt-1 text-[10px] text-slate-500">
+                <span>{tripWindow.odoEnd - tripWindow.odoStart}km</span>
+                <span>{tripDays.length}d</span>
+                <span>{stopEvents.length} stops</span>
+                <span>{tripWindow.cargo}</span>
+              </div>
+            </div>
+          )}
+          {viewMode === "day" && dayStats && (
+            <div className="bg-white/95 rounded-2xl shadow-lg px-4 py-3">
+              <div className="flex items-center gap-3 text-sm text-slate-700">
+                <span className="font-medium">{dayStats.distance} km</span>
+                <span className="text-slate-400">Max {dayStats.maxSpeed}</span>
+                <span className="text-slate-400">
+                  {stopEvents.length} stops
+                </span>
+                {dayTrips.length > 0 &&
+                  dayTrips.map((dt) => (
+                    <span
+                      key={dt.label}
+                      className="font-bold ml-auto"
+                      style={{ color: dt.color }}
+                    >
+                      {dt.label}
+                    </span>
+                  ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="flex-1 flex flex-col md:flex-row relative">
+        {/* Desktop stops panel */}
         {hasData && stopEvents.length > 0 && (
-          <div className="md:w-72 bg-slate-800/95 border-b md:border-b-0 md:border-r border-slate-700/50 shrink-0 overflow-y-auto z-10 max-h-32 md:max-h-none">
+          <div className="hidden md:block md:w-72 bg-slate-800/95 border-r border-slate-700/50 overflow-y-auto z-10">
             <div className="p-3 border-b border-slate-700/30">
               <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">
                 {selectedDriver} T{selectedDriver === "Senthil" ? "2" : "1"} ·
