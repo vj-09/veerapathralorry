@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useFleet } from "../lib/FleetContext";
 import { fmtInr, fmtPct, tierBadge } from "../lib/format";
 import {
@@ -11,6 +12,9 @@ import {
   ResponsiveContainer,
   ReferenceLine,
   CartesianGrid,
+  ScatterChart,
+  Scatter,
+  ZAxis,
 } from "recharts";
 import {
   Zap,
@@ -60,6 +64,59 @@ export default function Analytics() {
 
   const { daily, pace, insights, actions, gaps, routes, costStructure, cargo } =
     intel as any;
+
+  // ─── Deep Driver Metrics ───────────────────────────────
+  const driverDeep = useMemo(() => {
+    const calc = (driver: string) => {
+      const trips = filteredTrips.filter(
+        (t) => t.driver === driver && t.perDay > 0,
+      );
+      if (!trips.length) return null;
+      const totalRev = trips.reduce((s, t) => s + t.revenue, 0);
+      const totalProfit = trips.reduce((s, t) => s + t.trueProfit, 0);
+      const totalKm = trips.reduce((s, t) => s + (t.km || 0), 0);
+      const totalTons = trips
+        .filter((t) => t.weight)
+        .reduce((s, t) => s + (t.weight || 0), 0);
+      const totalDiesel = trips.reduce((s, t) => s + t.diesel, 0);
+      const totalDays = trips.reduce((s, t) => s + (t.calDays || 1), 0);
+      const perDayValues = trips.map((t) => t.perDay);
+      const mean =
+        perDayValues.reduce((s, v) => s + v, 0) / perDayValues.length;
+      const variance =
+        perDayValues.reduce((s, v) => s + (v - mean) ** 2, 0) /
+        perDayValues.length;
+      const stdDev = Math.round(Math.sqrt(variance));
+      return {
+        driver,
+        trips: trips.length,
+        revPerKm: totalKm > 0 ? Math.round(totalRev / totalKm) : 0,
+        profitPerTon: totalTons > 0 ? Math.round(totalProfit / totalTons) : 0,
+        profitPerDay: totalDays > 0 ? Math.round(totalProfit / totalDays) : 0,
+        avgLoadTons:
+          totalTons > 0
+            ? Math.round(
+                (totalTons / trips.filter((t) => t.weight).length) * 10,
+              ) / 10
+            : 0,
+        tripsCount: trips.length,
+        dieselPerKm:
+          totalKm > 0 ? Math.round((totalDiesel / totalKm) * 10) / 10 : 0,
+        fTier: trips.filter((t) => t.tier === "F").length,
+        mean: Math.round(mean),
+        stdDev,
+        cv: mean > 0 ? Math.round((stdDev / mean) * 100) : 0, // coefficient of variation %
+        perDayValues: trips.map((t) => ({
+          trip: "T" + t.tripNum,
+          perDay: t.perDay,
+          tier: t.tier,
+        })),
+        minPerDay: Math.min(...perDayValues),
+        maxPerDay: Math.max(...perDayValues),
+      };
+    };
+    return { kumar: calc("Kumar"), senthil: calc("Senthil") };
+  }, [filteredTrips]);
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
@@ -746,6 +803,264 @@ export default function Analytics() {
           </section>
         )}
       </div>
+
+      {/* ━━━ DRIVER DEEP METRICS ━━━ */}
+      {driverDeep.kumar &&
+        driverDeep.senthil &&
+        (() => {
+          const k = driverDeep.kumar!;
+          const s = driverDeep.senthil!;
+          const metrics = [
+            {
+              label: "₹/km driven",
+              k: k.revPerKm,
+              s: s.revPerKm,
+              fmt: (v: number) => `₹${v}`,
+              hi: "higher" as const,
+            },
+            {
+              label: "Profit/ton",
+              k: k.profitPerTon,
+              s: s.profitPerTon,
+              fmt: (v: number) => `₹${v.toLocaleString("en-IN")}`,
+              hi: "higher" as const,
+            },
+            {
+              label: "₹/calendar day",
+              k: k.profitPerDay,
+              s: s.profitPerDay,
+              fmt: (v: number) => fmtInr(v),
+              hi: "higher" as const,
+            },
+            {
+              label: "Avg load (T)",
+              k: k.avgLoadTons,
+              s: s.avgLoadTons,
+              fmt: (v: number) => `${v}T`,
+              hi: "higher" as const,
+            },
+            {
+              label: "Trips",
+              k: k.tripsCount,
+              s: s.tripsCount,
+              fmt: String,
+              hi: "higher" as const,
+            },
+            {
+              label: "F-tier trips",
+              k: k.fTier,
+              s: s.fTier,
+              fmt: String,
+              hi: "lower" as const,
+            },
+          ];
+
+          // Consistency chart data
+          const chartData: any[] = [];
+          const maxLen = Math.max(k.perDayValues.length, s.perDayValues.length);
+          for (let i = 0; i < maxLen; i++) {
+            chartData.push({
+              idx: i + 1,
+              kumar: k.perDayValues[i]?.perDay || null,
+              senthil: s.perDayValues[i]?.perDay || null,
+            });
+          }
+
+          return (
+            <>
+              {/* Section 1: Efficiency Matrix */}
+              <section className="rounded-xl border border-slate-700/50 bg-slate-800/60 p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-sm font-bold text-slate-200 uppercase tracking-wide">
+                    Driver Efficiency Matrix
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {metrics.map((m) => {
+                    const best =
+                      m.hi === "lower"
+                        ? Math.min(m.k, m.s)
+                        : Math.max(m.k, m.s);
+                    const kWin = m.k === best;
+                    const sWin = m.s === best;
+                    const delta =
+                      m.k !== 0
+                        ? Math.round(
+                            (Math.abs(m.k - m.s) / Math.max(m.k, m.s)) * 100,
+                          )
+                        : 0;
+                    return (
+                      <div
+                        key={m.label}
+                        className="flex items-center bg-slate-900/40 rounded-lg px-4 py-3"
+                      >
+                        <span className="text-xs text-slate-400 w-28 shrink-0">
+                          {m.label}
+                        </span>
+                        <div className="flex-1 flex items-center justify-around">
+                          <span
+                            className={`text-sm font-semibold ${kWin ? "text-green-400" : "text-slate-300"}`}
+                          >
+                            {m.fmt(m.k)}
+                          </span>
+                          <span className="text-slate-600 text-[10px]">vs</span>
+                          <span
+                            className={`text-sm font-semibold ${sWin ? "text-green-400" : "text-slate-300"}`}
+                          >
+                            {m.fmt(m.s)}
+                          </span>
+                        </div>
+                        {delta > 0 && (
+                          <span className="text-[10px] text-slate-500 w-10 text-right">
+                            +{delta}%
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-around mt-2 text-[10px] text-slate-500">
+                  <span className="ml-28">Kumar T1</span>
+                  <span>Senthil T2</span>
+                </div>
+              </section>
+
+              {/* Section 2: Consistency Score */}
+              <section className="rounded-xl border border-slate-700/50 bg-slate-800/60 p-5">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-sm font-bold text-slate-200 uppercase tracking-wide">
+                    Consistency Score
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    ₹/day variance across trips
+                  </span>
+                </div>
+
+                {/* Chart: ₹/day per trip, both drivers */}
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart
+                    data={chartData}
+                    margin={{ left: 0, right: 0, top: 5, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                    <XAxis
+                      dataKey="idx"
+                      tick={{ fill: "#64748b", fontSize: 10 }}
+                      label={{
+                        value: "Trip #",
+                        fill: "#64748b",
+                        fontSize: 10,
+                        position: "bottom",
+                      }}
+                    />
+                    <YAxis
+                      tick={{ fill: "#64748b", fontSize: 10 }}
+                      tickFormatter={(v: number) =>
+                        `₹${(v / 1000).toFixed(0)}K`
+                      }
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: "#1e293b",
+                        border: "1px solid #334155",
+                        borderRadius: 8,
+                        fontSize: 12,
+                      }}
+                      formatter={(v: number, name: string) => [
+                        fmtInr(v),
+                        name === "kumar" ? "Kumar" : "Senthil",
+                      ]}
+                    />
+                    <ReferenceLine
+                      y={4386}
+                      stroke="#f97316"
+                      strokeDasharray="4 4"
+                      strokeWidth={1}
+                    />
+                    <Bar
+                      dataKey="kumar"
+                      fill="#3b82f6"
+                      radius={[3, 3, 0, 0]}
+                      name="kumar"
+                    />
+                    <Bar
+                      dataKey="senthil"
+                      fill="#f59e0b"
+                      radius={[3, 3, 0, 0]}
+                      name="senthil"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+
+                {/* Stats */}
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div className="bg-slate-900/40 rounded-lg p-3">
+                    <div className="text-xs text-blue-400 font-bold mb-1">
+                      Kumar T1
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400">Avg ₹/day</span>
+                      <span className="text-slate-200 font-medium">
+                        {fmtInr(k.mean)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400">Std deviation</span>
+                      <span className="text-slate-200">
+                        ±{fmtInr(k.stdDev)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400">Range</span>
+                      <span className="text-slate-200">
+                        {fmtInr(k.minPerDay)}–{fmtInr(k.maxPerDay)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs mt-1">
+                      <span className="text-slate-400">Volatility</span>
+                      <span
+                        className={`font-bold ${k.cv < 50 ? "text-green-400" : "text-red-400"}`}
+                      >
+                        {k.cv}% {k.cv < 50 ? "STABLE" : "VOLATILE"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="bg-slate-900/40 rounded-lg p-3">
+                    <div className="text-xs text-amber-400 font-bold mb-1">
+                      Senthil T2
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400">Avg ₹/day</span>
+                      <span className="text-slate-200 font-medium">
+                        {fmtInr(s.mean)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400">Std deviation</span>
+                      <span className="text-slate-200">
+                        ±{fmtInr(s.stdDev)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400">Range</span>
+                      <span className="text-slate-200">
+                        {fmtInr(s.minPerDay)}–{fmtInr(s.maxPerDay)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs mt-1">
+                      <span className="text-slate-400">Volatility</span>
+                      <span
+                        className={`font-bold ${s.cv < 50 ? "text-green-400" : "text-red-400"}`}
+                      >
+                        {s.cv}% {s.cv < 50 ? "STABLE" : "VOLATILE"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </>
+          );
+        })()}
 
       {/* ━━━ THE DECISION FORMULA (sticky reminder) ━━━ */}
       <section className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-4 flex flex-col sm:flex-row items-center gap-4">
