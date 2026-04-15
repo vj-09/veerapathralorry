@@ -50,12 +50,12 @@ export default function Dashboard() {
       good: cur.afterEmi >= 0,
     },
     {
-      label: "Projected Profit (30d)",
-      value: fmtInr(cur.projected30d),
-      raw: cur.projected30d,
-      prevRaw: prev?.projected30d,
+      label: `Actual Profit (${cur.daysInPeriod}d)`,
+      value: fmtInr(cur.totalProfit),
+      raw: cur.totalProfit,
+      prevRaw: prev?.totalProfit,
       target: "Target: ≥₹1.5L",
-      good: cur.projected30d >= 150000,
+      good: cur.totalProfit >= 150000,
     },
     {
       label: "Revenue",
