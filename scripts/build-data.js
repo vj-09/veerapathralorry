@@ -18,38 +18,16 @@ if (!hasExcel) {
   process.exit(1);
 }
 
-const {
-  loadAllData,
-  computeMetrics,
-  computeDriverStats,
-  computeCargoStats,
-  computeIntelligence,
-} = require("../server/parser");
+const { loadAllData } = require("../server/parser");
 
 const data = loadAllData(DATA_DIR);
 
+// Single source of truth: allTrips only.
+// All metrics, driver stats, cargo, and intelligence are computed
+// live in the browser by FleetContext using src/lib/compute.ts.
 const result = {
-  months: data.months,
-  metrics: {},
   allTrips: data.trips,
-  intelligence: {},
-  drivers: {},
-  allDrivers: computeDriverStats(data.trips),
-  cargo: {},
-  allCargo: computeCargoStats(data.trips),
 };
-
-for (const month of data.months) {
-  const trips = data.trips.filter((t) => t.month === month);
-  result.metrics[month] = computeMetrics(trips);
-  result.intelligence[month] = computeIntelligence(
-    data.trips,
-    month,
-    data.months,
-  );
-  result.drivers[month] = computeDriverStats(trips);
-  result.cargo[month] = computeCargoStats(trips);
-}
 
 fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
 fs.writeFileSync(OUT_FILE, JSON.stringify(result));
