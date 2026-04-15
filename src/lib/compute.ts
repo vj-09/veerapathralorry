@@ -156,8 +156,9 @@ export function computeMetrics(trips: Trip[]): Metrics | null {
 
   return {
     fleetPerDay: Math.round(fleetPerDay),
-    emiCoverage: Math.round((projected30d / EMI) * 100) / 100,
-    afterEmi: Math.round(projected30d - EMI),
+    emiCoverage:
+      Math.round((totalProfit / ((EMI * daysInPeriod) / 30)) * 100) / 100,
+    afterEmi: Math.round(totalProfit - (EMI * daysInPeriod) / 30),
     projected30d: Math.round(projected30d),
     totalRevenue,
     totalDiesel,

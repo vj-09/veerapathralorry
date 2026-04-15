@@ -34,7 +34,7 @@ export default function Dashboard() {
       good: cur.fleetPerDay >= EMI_PER_DAY,
     },
     {
-      label: "EMI Coverage (30d)",
+      label: "EMI Coverage",
       value: cur.emiCoverage.toFixed(2) + "x",
       raw: cur.emiCoverage,
       prevRaw: prev?.emiCoverage,
@@ -42,7 +42,7 @@ export default function Dashboard() {
       good: cur.emiCoverage >= 1,
     },
     {
-      label: "After EMI (30d)",
+      label: "After EMI",
       value: fmtInr(cur.afterEmi),
       raw: cur.afterEmi,
       prevRaw: prev?.afterEmi,
@@ -202,15 +202,19 @@ export default function Dashboard() {
         </div>
         <div className="grid grid-cols-3 gap-3 mt-4 text-center">
           <div>
-            <div className="text-[10px] text-slate-500">EMI/Month</div>
+            <div className="text-[10px] text-slate-500">
+              EMI ({cur.daysInPeriod}d)
+            </div>
             <div className="text-sm font-semibold text-slate-300">
-              {fmtInr(EMI)}
+              {fmtInr(Math.round((EMI * cur.daysInPeriod) / 30))}
             </div>
           </div>
           <div>
-            <div className="text-[10px] text-slate-500">Projected (30d)</div>
+            <div className="text-[10px] text-slate-500">
+              Actual ({cur.daysInPeriod}d)
+            </div>
             <div className="text-sm font-semibold text-slate-300">
-              {fmtInr(cur.projected30d)}
+              {fmtInr(cur.totalProfit)}
             </div>
           </div>
           <div>
